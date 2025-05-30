@@ -11,6 +11,7 @@ import AppKit
 @main
 struct BufferApp: App {
     @StateObject private var clipboardManager = ClipboardManager()
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
         MenuBarExtra("Buffer", systemImage: "doc.on.clipboard") {
@@ -18,24 +19,14 @@ struct BufferApp: App {
                 .environmentObject(clipboardManager)
         }
         .menuBarExtraStyle(.window)
-        Settings {
-            EmptyView()
-        }
     }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var statusItem: NSStatusItem?
-    var monitor: Any?
+    private var monitor: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        setupStatusItem()
         setupGlobalMonitor()
-    }
-    
-    private func setupStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem?.button?.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: "Buffer")
     }
     
     private func setupGlobalMonitor() {
