@@ -4,60 +4,208 @@ struct ClipboardView: View {
     @EnvironmentObject private var clipboardManager: ClipboardManager
     @State private var searchText = ""
     @State private var isAppearing = false
+    @State private var selectedFilter: ClipboardFilter = .all
+    @State private var previewedImage: ImagePreviewData? = nil // Zmieniamy typ na własny
     
     private var filteredItems: [ClipboardItem] {
-        searchText.isEmpty ? clipboardManager.items : clipboardManager.items.filter { 
+        let items = clipboardManager.items
+        
+        // Apply search filter
+        let searchFiltered = searchText.isEmpty ? items : items.filter { 
             $0.content.localizedCaseInsensitiveContains(searchText) 
+        }
+        
+        // Apply type filter
+        switch selectedFilter {
+        case .all:
+            return searchFiltered
+        case .text:
+            return searchFiltered.filter { $0.type == .text }
+        case .images:
+            return searchFiltered.filter { $0.type == .image }
+        case .files:
+            return searchFiltered.filter { $0.type == .file }
+        case .urls:
+            return searchFiltered.filter { $0.type == .url }
+        case .pinned:
+            return searchFiltered.filter { $0.isPinned }
         }
     }
     
     var body: some View {
         VStack(spacing: 0) {
             headerView
+            filterView
             contentView
             footerView
         }
-        .frame(width: 400, height: 500)
+        .frame(width: 450, height: 600)
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.95)
         .onAppear(perform: setupAppearance)
+        .sheet(item: $previewedImage) { preview in
+            ImagePreviewSheet(image: preview.image)
+        }
     }
     
     private var headerView: some View {
         HStack {
             Text("Clipboard History")
                 .font(.headline)
+                .fontWeight(.semibold)
+            
             Spacer()
-            TextField("Search", text: $searchText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .frame(width: 200)
+            
+            HStack(spacing: 8) {
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(width: 180)
+                
+                Button(action: {
+                    searchText = ""
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .opacity(searchText.isEmpty ? 0 : 1)
+            }
         }
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
     }
     
+    private var filterView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ClipboardFilter.allCases, id: \.self) { filter in
+                    FilterButton(
+                        title: filter.title,
+                        isSelected: selectedFilter == filter,
+                        action: { selectedFilter = filter }
+                    )
+                }
+            }
+            .padding(.horizontal)
+        }
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+    
     private var contentView: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(filteredItems) { item in
-                    ClipboardItemView(item: item)
-                        .contextMenu {
-                            Button("Copy") { clipboardManager.copyItem(item) }
-                            Button(item.isPinned ? "Unpin" : "Pin") { clipboardManager.togglePin(item) }
-                            Button("Delete") { clipboardManager.removeItem(item) }
+        Group {
+            if filteredItems.isEmpty {
+                emptyStateView
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(filteredItems) { item in
+                            ClipboardItemView(item: item, onImageTap: { nsImage in
+                                previewedImage = ImagePreviewData(image: nsImage)
+                            })
+                                .contextMenu {
+                                    Button("Copy") { 
+                                        clipboardManager.copyItem(item)
+                                        showCopyFeedback()
+                                    }
+                                    Button(item.isPinned ? "Unpin" : "Pin") { 
+                                        clipboardManager.togglePin(item) 
+                                    }
+                                    Divider()
+                                    Button("Delete") { clipboardManager.removeItem(item) }
+                                }
+                                .onTapGesture { 
+                                    clipboardManager.copyItem(item)
+                                    showCopyFeedback()
+                                }
                         }
-                        .onTapGesture { clipboardManager.copyItem(item) }
+                    }
+                    .padding(.vertical, 8)
                 }
             }
         }
     }
     
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "doc.on.clipboard")
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            
+            Text(emptyStateMessage)
+                .font(.headline)
+                .foregroundColor(.secondary)
+            
+            Text(emptyStateSubtitle)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+    
+    private var emptyStateMessage: String {
+        if !searchText.isEmpty {
+            return "No items found"
+        }
+        switch selectedFilter {
+        case .all:
+            return "No clipboard items"
+        case .text:
+            return "No text items"
+        case .images:
+            return "No images"
+        case .files:
+            return "No files"
+        case .urls:
+            return "No URLs"
+        case .pinned:
+            return "No pinned items"
+        }
+    }
+    
+    private var emptyStateSubtitle: String {
+        if !searchText.isEmpty {
+            return "Try adjusting your search terms"
+        }
+        switch selectedFilter {
+        case .all:
+            return "Copy something to get started"
+        case .text:
+            return "Copy some text to see it here"
+        case .images:
+            return "Copy an image to see it here"
+        case .files:
+            return "Copy a file to see it here"
+        case .urls:
+            return "Copy a URL to see it here"
+        case .pinned:
+            return "Pin items to keep them here"
+        }
+    }
+    
     private var footerView: some View {
         HStack {
+            Text("\(filteredItems.count) items")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            
             Spacer()
-            Button("Clear All") { clipboardManager.clearAll() }
+            
+            HStack(spacing: 12) {
+                Button("Clear Unpinned") { 
+                    clipboardManager.clearUnpinned() 
+                }
                 .buttonStyle(.plain)
-                .foregroundColor(.blue)
+                .foregroundColor(.orange)
+                
+                Button("Clear All") { 
+                    clipboardManager.clearAll() 
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(.red)
+            }
         }
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
@@ -67,105 +215,80 @@ struct ClipboardView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             isAppearing = true
         }
-        
-        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            if event.modifierFlags.contains(.command) && event.characters == "`" {
-                WindowManager.shared.toggleWindow()
-                return nil
-            }
-            if event.keyCode == 53 { // Escape key
-                WindowManager.shared.toggleWindow()
-                return nil
-            }
-            return event
+    }
+    
+    private func showCopyFeedback() {
+        // Visual feedback for copy action
+        // This could be enhanced with a toast notification
+    }
+}
+
+// MARK: - Supporting Views
+
+struct FilterButton: View {
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(isSelected ? Color.blue : Color.clear)
+                )
+                .foregroundColor(isSelected ? .white : .primary)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(isSelected ? Color.clear : Color.secondary.opacity(0.3), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+enum ClipboardFilter: CaseIterable {
+    case all, text, images, files, urls, pinned
+    
+    var title: String {
+        switch self {
+        case .all: return "All"
+        case .text: return "Text"
+        case .images: return "Images"
+        case .files: return "Files"
+        case .urls: return "URLs"
+        case .pinned: return "Pinned"
         }
     }
 }
 
-struct GlowEffect: ViewModifier {
-    let isHovered: Bool
-    let isSelected: Bool
-    
-    func body(content: Content) -> some View {
-        content
-            .overlay(outerGlow)
-            .overlay(innerGlow)
-            .overlay(selectionBorder)
-    }
-    
-    private var outerGlow: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.blue.opacity(isHovered ? 0.9 : 0),
-                        Color.blue.opacity(isHovered ? 0.6 : 0),
-                        Color.blue.opacity(isHovered ? 0.9 : 0)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: isHovered ? 3 : 0
-            )
-            .blur(radius: isHovered ? 3 : 0)
-    }
-    
-    private var innerGlow: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.white.opacity(isHovered ? 0.8 : 0),
-                        Color.blue.opacity(isHovered ? 0.6 : 0),
-                        Color.white.opacity(isHovered ? 0.8 : 0)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: isHovered ? 1 : 0
-            )
-            .blur(radius: isHovered ? 1 : 0)
-    }
-    
-    private var selectionBorder: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color.blue.opacity(isSelected ? 0.8 : 0),
-                        Color.blue.opacity(isSelected ? 0.5 : 0),
-                        Color.blue.opacity(isSelected ? 0.8 : 0)
-                    ]),
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: isSelected ? 2 : 0
-            )
-            .shadow(color: .blue.opacity(isSelected ? 0.5 : 0), radius: isSelected ? 4 : 0)
-            .blur(radius: isSelected ? 1 : 0)
-    }
-}
+// MARK: - Enhanced ClipboardItemView
 
 struct ClipboardItemView: View {
     let item: ClipboardItem
     @EnvironmentObject private var clipboardManager: ClipboardManager
     @State private var isHovered = false
     @State private var isSelected = false
+    var onImageTap: ((NSImage) -> Void)? = nil // Dodane do obsługi podglądu
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 12) {
             itemIcon
             itemContent
             pinButton
         }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
         .background(itemBackground)
         .modifier(GlowEffect(isHovered: isHovered, isSelected: isSelected))
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .shadow(color: .black.opacity(isSelected ? 0.1 : 0), radius: 4, x: 0, y: 2)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 2)
         .onHover { hovering in
             withAnimation(.spring(response: 0.2, dampingFraction: 0.6)) {
                 isHovered = hovering
@@ -180,32 +303,45 @@ struct ClipboardItemView: View {
                 Image(nsImage: nsImage)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 40, height: 40)
-                    .cornerRadius(4)
+                    .frame(width: 44, height: 44)
+                    .cornerRadius(6)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                    .onTapGesture {
+                        onImageTap?(nsImage)
+                    }
             } else {
                 Image(systemName: item.type.icon)
                     .foregroundColor(.secondary)
-                    .frame(width: 20)
+                    .frame(width: 24)
+                    .font(.system(size: 16))
             }
         }
     }
     
     private var itemContent: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if item.type == .image {
-                Text("Image")
-                    .lineLimit(1)
-                    .font(.system(size: 13))
-            } else {
-                Text(item.content)
-                    .lineLimit(2)
-                    .font(.system(size: 13))
-            }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.displayName)
+                .lineLimit(3)
+                .font(.system(size: 14))
+                .foregroundColor(.primary)
             
             HStack {
-                Text(item.type.rawValue.capitalized)
+                HStack(spacing: 4) {
+                    Text(item.type.rawValue.capitalized)
+                    if let fileExt = item.fileExtension {
+                        Text("(\(fileExt))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.secondary.opacity(0.1))
+                    )
                 
                 Spacer()
                 
@@ -225,12 +361,13 @@ struct ClipboardItemView: View {
             Image(systemName: item.isPinned ? "pin.fill" : "pin")
                 .foregroundColor(item.isPinned ? .blue : .secondary)
                 .scaleEffect(isHovered ? 1.1 : 1.0)
+                .font(.system(size: 14))
         }
         .buttonStyle(.plain)
     }
     
     private var itemBackground: some View {
-        RoundedRectangle(cornerRadius: 6)
+        RoundedRectangle(cornerRadius: 8)
             .fill(Color(NSColor.controlBackgroundColor))
             .shadow(color: .black.opacity(isHovered ? 0.1 : 0), radius: isHovered ? 4 : 0, x: 0, y: 2)
     }
@@ -246,5 +383,97 @@ struct ClipboardItemView: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Glow Effect
+
+struct GlowEffect: ViewModifier {
+    let isHovered: Bool
+    let isSelected: Bool
+    
+    func body(content: Content) -> some View {
+        content
+            .overlay(outerGlow)
+            .overlay(innerGlow)
+            .overlay(selectionBorder)
+    }
+    
+    private var outerGlow: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .stroke(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.blue.opacity(isHovered ? 0.9 : 0),
+                        Color.blue.opacity(isHovered ? 0.6 : 0),
+                        Color.blue.opacity(isHovered ? 0.9 : 0)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: isHovered ? 3 : 0
+            )
+            .blur(radius: isHovered ? 3 : 0)
+    }
+    
+    private var innerGlow: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .stroke(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.white.opacity(isHovered ? 0.8 : 0),
+                        Color.blue.opacity(isHovered ? 0.6 : 0),
+                        Color.white.opacity(isHovered ? 0.8 : 0)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: isHovered ? 1 : 0
+            )
+            .blur(radius: isHovered ? 1 : 0)
+    }
+    
+    private var selectionBorder: some View {
+        RoundedRectangle(cornerRadius: 8)
+            .stroke(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color.blue.opacity(isSelected ? 0.8 : 0),
+                        Color.blue.opacity(isSelected ? 0.5 : 0),
+                        Color.blue.opacity(isSelected ? 0.8 : 0)
+                    ]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ),
+                lineWidth: isSelected ? 2 : 0
+            )
+            .shadow(color: .blue.opacity(isSelected ? 0.5 : 0), radius: isSelected ? 4 : 0)
+            .blur(radius: isSelected ? 1 : 0)
+    }
+} 
+
+// Dodajemy typ pomocniczy do obsługi podglądu
+struct ImagePreviewData: Identifiable {
+    let id = UUID()
+    let image: NSImage
+}
+
+// Dodajemy widok podglądu obrazka
+struct ImagePreviewSheet: View {
+    let image: NSImage
+    
+    var body: some View {
+        VStack {
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 500, maxHeight: 500)
+                .padding()
+            Button("Zamknij") {
+                NSApp.keyWindow?.close()
+            }
+            .padding(.bottom)
+        }
+        .frame(minWidth: 300, minHeight: 300)
     }
 } 
