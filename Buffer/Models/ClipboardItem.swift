@@ -22,82 +22,19 @@ struct ClipboardItem: Identifiable, Codable {
     var displayName: String {
         switch type {
         case .image:
-            return generateImageName()
+            return ClipboardItemNameHelper.generateImageName(data: data)
         case .file:
-            return generateFileName()
+            return ClipboardItemNameHelper.generateFileName(content: content)
         case .url:
-            return generateURLName()
+            return ClipboardItemNameHelper.generateURLName(content: content)
         case .text:
-            return generateTextName()
+            return ClipboardItemNameHelper.generateTextName(content: content)
         case .richText:
-            return generateRichTextName()
+            return ClipboardItemNameHelper.generateRichTextName(content: content)
         }
     }
     
-    // Generuje nazwę dla zdjęcia
-    private func generateImageName() -> String {
-        if let data = data {
-            // Sprawdź rozmiar obrazu
-            if let image = NSImage(data: data) {
-                let size = image.size
-                let width = Int(size.width)
-                let height = Int(size.height)
-                return "Zdjęcie \(width)×\(height)"
-            }
-        }
-        return "Zdjęcie"
-    }
-    
-    // Generuje nazwę dla pliku
-    private func generateFileName() -> String {
-        let url = URL(string: content)
-        let fileName = url?.lastPathComponent ?? content
-        
-        // Jeśli to jest plik z rozszerzeniem, pokaż rozszerzenie
-        if let fileExtension = url?.pathExtension, !fileExtension.isEmpty {
-            return fileName
-        }
-        
-        // Jeśli to folder, dodaj "/" na końcu
-        if content.hasSuffix("/") {
-            return fileName + "/"
-        }
-        
-        return fileName
-    }
-    
-    // Generuje nazwę dla URL
-    private func generateURLName() -> String {
-        guard let url = URL(string: content) else { return content }
-        
-        // Jeśli to plik, użyj nazwy pliku
-        if !url.pathExtension.isEmpty {
-            return url.lastPathComponent
-        }
-        
-        // Dla stron internetowych, pokaż domenę
-        if let host = url.host {
-            return host
-        }
-        
-        return content
-    }
-    
-    // Generuje nazwę dla tekstu
-    private func generateTextName() -> String {
-        let maxLength = 50
-        if content.count <= maxLength {
-            return content
-        } else {
-            let truncated = String(content.prefix(maxLength))
-            return truncated + "..."
-        }
-    }
-    
-    // Generuje nazwę dla rich text
-    private func generateRichTextName() -> String {
-        return generateTextName()
-    }
+    // Usunięto metody generateImageName, generateFileName, generateURLName, generateTextName, generateRichTextName
     
     // Funkcja do pobierania rozszerzenia pliku
     var fileExtension: String? {

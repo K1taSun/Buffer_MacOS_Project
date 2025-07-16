@@ -40,6 +40,25 @@ open Buffer.xcodeproj
 
 Then build and run in Xcode.
 
+## Struktura projektu
+
+- `Buffer/` – kod źródłowy aplikacji
+  - `Assets.xcassets/` – zasoby graficzne
+  - `Managers/` – menedżery logiki
+  - `Models/` – modele danych
+  - `Views/` – widoki UI
+  - `Extensions/` – rozszerzenia (opcjonalnie)
+  - `Services/` – serwisy (opcjonalnie)
+  - `Helpers/` – pomocnicze klasy/funkcje (opcjonalnie)
+- `BufferTests/` – testy jednostkowe
+- `BufferUITests/` – testy UI
+- `Buffer.xcodeproj/` – pliki projektu Xcode
+
+## Uruchomienie
+
+1. Otwórz projekt w Xcode (`Buffer.xcodeproj`).
+2. Zbuduj i uruchom aplikację na wybranym symulatorze lub urządzeniu.
+
 ## License
 
 MIT
