@@ -200,6 +200,33 @@ class ClipboardManager: ObservableObject {
         timer?.invalidate()
         timer = nil
     }
+    
+    // MARK: - Helper Methods
+    
+    private func detectImageType(from data: Data) -> String {
+        if data.starts(with: [0xFF, 0xD8, 0xFF]) {
+            return "jpg"
+        } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
+            return "png"
+        } else if data.starts(with: [0x47, 0x49, 0x46]) {
+            return "gif"
+        } else if data.starts(with: [0x52, 0x49, 0x46, 0x46]) {
+            return "webp"
+        } else {
+            return "tiff"
+        }
+    }
+    
+    private func detectFileType(from path: String) -> ClipboardItemType {
+        let url = URL(string: path)
+        let isDirectory = url?.hasDirectoryPath ?? false
+        
+        if isDirectory {
+            return .file // Możesz dodać nowy typ .folder jeśli chcesz
+        }
+        
+        return .file
+    }
 }
 
 // MARK: - Extensions
@@ -209,31 +236,4 @@ extension Data {
         let hash = SHA256.hash(data: self)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
-} 
-
-// Funkcja do wykrywania typu obrazu
-private func detectImageType(from data: Data) -> String {
-    if data.starts(with: [0xFF, 0xD8, 0xFF]) {
-        return "jpg"
-    } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
-        return "png"
-    } else if data.starts(with: [0x47, 0x49, 0x46]) {
-        return "gif"
-    } else if data.starts(with: [0x52, 0x49, 0x46, 0x46]) {
-        return "webp"
-    } else {
-        return "tiff"
-    }
-}
-
-// Funkcja do wykrywania typu pliku
-private func detectFileType(from path: String) -> ClipboardItemType {
-    let url = URL(string: path)
-    let isDirectory = url?.hasDirectoryPath ?? false
-    
-    if isDirectory {
-        return .file // Możesz dodać nowy typ .folder jeśli chcesz
-    }
-    
-    return .file
 } 
