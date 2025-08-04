@@ -5,7 +5,8 @@ struct ClipboardView: View {
     @State private var searchText = ""
     @State private var isAppearing = false
     @State private var selectedFilter: ClipboardFilter = .all
-    @State private var previewedImage: ImagePreviewData? = nil // Zmieniamy typ na własny
+    @State private var previewedImage: ImagePreviewData? = nil
+    @State private var showCopyFeedback = false
     
     private var filteredItems: [ClipboardItem] {
         let items = clipboardManager.items
@@ -46,6 +47,34 @@ struct ClipboardView: View {
         .sheet(item: $previewedImage) { preview in
             ImagePreviewSheet(image: preview.image)
         }
+        .overlay(
+            // Copy feedback overlay
+            Group {
+                if showCopyFeedback {
+                    VStack {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            Text("Copied!")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color.green)
+                                )
+                                .shadow(radius: 4)
+                            Spacer()
+                        }
+                        .padding(.bottom, 20)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(1000)
+                }
+            }
+        )
     }
     
     private var headerView: some View {
@@ -218,8 +247,15 @@ struct ClipboardView: View {
     }
     
     private func showCopyFeedback() {
-        // Visual feedback for copy action
-        // This could be enhanced with a toast notification
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showCopyFeedback = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showCopyFeedback = false
+            }
+        }
     }
 }
 
@@ -273,7 +309,7 @@ struct ClipboardItemView: View {
     @EnvironmentObject private var clipboardManager: ClipboardManager
     @State private var isHovered = false
     @State private var isSelected = false
-    var onImageTap: ((NSImage) -> Void)? = nil // Dodane do obsługi podglądu
+    var onImageTap: ((NSImage) -> Void)? = nil
     
     var body: some View {
         HStack(spacing: 12) {
@@ -450,17 +486,18 @@ struct GlowEffect: ViewModifier {
             .shadow(color: .blue.opacity(isSelected ? 0.5 : 0), radius: isSelected ? 4 : 0)
             .blur(radius: isSelected ? 1 : 0)
     }
-} 
+}
 
-// Dodajemy typ pomocniczy do obsługi podglądu
+// MARK: - Image Preview
+
 struct ImagePreviewData: Identifiable {
     let id = UUID()
     let image: NSImage
 }
 
-// Dodajemy widok podglądu obrazka
 struct ImagePreviewSheet: View {
     let image: NSImage
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         VStack {
@@ -469,8 +506,9 @@ struct ImagePreviewSheet: View {
                 .scaledToFit()
                 .frame(maxWidth: 500, maxHeight: 500)
                 .padding()
-            Button("Zamknij") {
-                NSApp.keyWindow?.close()
+            
+            Button("Close") {
+                dismiss()
             }
             .padding(.bottom)
         }

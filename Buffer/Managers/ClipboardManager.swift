@@ -14,6 +14,7 @@ class ClipboardManager: ObservableObject {
     private var isProcessing = false
     private let maxItems = 50
     private let checkInterval: TimeInterval = 0.3
+    private var cancellables = Set<AnyCancellable>()
     
     private init() {
         startMonitoring()
@@ -21,10 +22,21 @@ class ClipboardManager: ObservableObject {
     }
     
     private func startMonitoring() {
+        // Stop any existing timer
+        stopMonitoring()
+        
         timer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
             self?.checkClipboard()
         }
-        RunLoop.current.add(timer!, forMode: .common)
+        
+        if let timer = timer {
+            RunLoop.current.add(timer, forMode: .common)
+        }
+    }
+    
+    private func stopMonitoring() {
+        timer?.invalidate()
+        timer = nil
     }
     
     private func checkClipboard() {
@@ -54,7 +66,7 @@ class ClipboardManager: ObservableObject {
             guard imageHash != lastImageHash else { return }
             lastImageHash = imageHash
             
-            // Sprawdź czy to PNG, JPEG, GIF lub inny format
+            // Check if it's PNG, JPEG, GIF or other format
             let imageType = detectImageType(from: imageData)
             let item = ClipboardItem(content: "Image.\(imageType)", type: .image, data: imageData)
             addItem(item)
@@ -87,7 +99,7 @@ class ClipboardManager: ObservableObject {
         // Check for files
         if let files = NSPasteboard.general.pasteboardItems?.compactMap({ $0.string(forType: .fileURL) }) {
             for file in files {
-                // Sprawdź czy to plik czy folder
+                // Check if it's a file or folder
                 let fileType = detectFileType(from: file)
                 let item = ClipboardItem(content: file, type: fileType)
                 addItem(item)
@@ -197,8 +209,8 @@ class ClipboardManager: ObservableObject {
     }
     
     deinit {
-        timer?.invalidate()
-        timer = nil
+        stopMonitoring()
+        cancellables.removeAll()
     }
     
     // MARK: - Helper Methods
@@ -222,7 +234,7 @@ class ClipboardManager: ObservableObject {
         let isDirectory = url?.hasDirectoryPath ?? false
         
         if isDirectory {
-            return .file // Możesz dodać nowy typ .folder jeśli chcesz
+            return .file // You can add a new .folder type if you want
         }
         
         return .file

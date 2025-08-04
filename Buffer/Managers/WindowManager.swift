@@ -76,6 +76,9 @@ class WindowManager: ObservableObject {
         if #available(macOS 11.0, *) {
             window.toolbarStyle = .unified
         }
+        
+        // Add window delegate to handle window closing
+        window.delegate = self
     }
     
     private func setupContentView(for window: NSWindow) {
@@ -115,5 +118,21 @@ class WindowManager: ObservableObject {
     
     func isWindowVisible() -> Bool {
         return window?.isVisible == true
+    }
+}
+
+// MARK: - NSWindowDelegate
+extension WindowManager: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        // Reset window reference when window is closed
+        if let closingWindow = notification.object as? NSWindow, closingWindow === window {
+            window = nil
+        }
+    }
+    
+    func windowDidResignKey(_ notification: Notification) {
+        // Optional: Hide window when it loses focus
+        // Uncomment the line below if you want this behavior
+        // hideWindow()
     }
 } 

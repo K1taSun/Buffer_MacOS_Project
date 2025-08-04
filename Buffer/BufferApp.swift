@@ -20,8 +20,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var localMonitor: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Request accessibility permissions for global keyboard shortcuts
+        requestAccessibilityPermissions()
+        
         setupGlobalMonitor()
         setupLocalMonitor()
+        
+        // Set up the app to run in the background
+        NSApp.setActivationPolicy(.accessory)
+    }
+    
+    private func requestAccessibilityPermissions() {
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
+        let accessEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
+        
+        if !accessEnabled {
+            print("Accessibility permissions are required for global keyboard shortcuts")
+        }
     }
     
     private func setupGlobalMonitor() {
@@ -40,12 +55,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
+        // Check for Cmd+` shortcut
         if event.modifierFlags.contains(.command) && event.characters == "`" {
             DispatchQueue.main.async {
                 WindowManager.shared.toggleWindow()
             }
             return true
         }
+        
+        // Check for Cmd+Shift+V shortcut as alternative
+        if event.modifierFlags.contains([.command, .shift]) && event.characters == "v" {
+            DispatchQueue.main.async {
+                WindowManager.shared.toggleWindow()
+            }
+            return true
+        }
+        
         return false
     }
     
