@@ -48,7 +48,6 @@ struct ClipboardView: View {
             ImagePreviewSheet(image: preview.image)
         }
         .overlay(
-            // Copy feedback overlay
             Group {
                 if showCopyFeedback {
                     VStack {
@@ -135,7 +134,7 @@ struct ClipboardView: View {
                                 .contextMenu {
                                     Button("Copy") { 
                                         clipboardManager.copyItem(item)
-                                        showCopyFeedback()
+                                        triggerCopyFeedback()
                                     }
                                     Button(item.isPinned ? "Unpin" : "Pin") { 
                                         clipboardManager.togglePin(item) 
@@ -145,7 +144,7 @@ struct ClipboardView: View {
                                 }
                                 .onTapGesture { 
                                     clipboardManager.copyItem(item)
-                                    showCopyFeedback()
+                                    triggerCopyFeedback()
                                 }
                         }
                     }
@@ -246,7 +245,7 @@ struct ClipboardView: View {
         }
     }
     
-    private func showCopyFeedback() {
+    private func triggerCopyFeedback() {
         withAnimation(.easeInOut(duration: 0.2)) {
             showCopyFeedback = true
         }
@@ -258,8 +257,6 @@ struct ClipboardView: View {
         }
     }
 }
-
-// MARK: - Supporting Views
 
 struct FilterButton: View {
     let title: String
@@ -301,8 +298,6 @@ enum ClipboardFilter: CaseIterable {
         }
     }
 }
-
-// MARK: - Enhanced ClipboardItemView
 
 struct ClipboardItemView: View {
     let item: ClipboardItem
@@ -422,8 +417,6 @@ struct ClipboardItemView: View {
     }
 }
 
-// MARK: - Glow Effect
-
 struct GlowEffect: ViewModifier {
     let isHovered: Bool
     let isSelected: Bool
@@ -487,8 +480,6 @@ struct GlowEffect: ViewModifier {
             .blur(radius: isSelected ? 1 : 0)
     }
 }
-
-// MARK: - Image Preview
 
 struct ImagePreviewData: Identifiable {
     let id = UUID()

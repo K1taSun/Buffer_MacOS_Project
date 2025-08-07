@@ -22,7 +22,6 @@ class ClipboardManager: ObservableObject {
     }
     
     private func startMonitoring() {
-        // Stop any existing timer
         stopMonitoring()
         
         timer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
@@ -60,13 +59,11 @@ class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        // Check for images first (highest priority)
         if let imageData = NSPasteboard.general.data(forType: .tiff) {
             let imageHash = imageData.sha256()
             guard imageHash != lastImageHash else { return }
             lastImageHash = imageHash
             
-            // Check if it's PNG, JPEG, GIF or other format
             let imageType = detectImageType(from: imageData)
             let item = ClipboardItem(content: "Image.\(imageType)", type: .image, data: imageData)
             addItem(item)
@@ -74,12 +71,10 @@ class ClipboardManager: ObservableObject {
             return
         }
         
-        // Check for text content
         if let string = NSPasteboard.general.string(forType: .string) {
             guard string != lastContent else { return }
             lastContent = string
             
-            // Skip empty strings or very short content
             guard !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   string.count > 1 else { return }
             
@@ -96,10 +91,8 @@ class ClipboardManager: ObservableObject {
             return
         }
         
-        // Check for files
         if let files = NSPasteboard.general.pasteboardItems?.compactMap({ $0.string(forType: .fileURL) }) {
             for file in files {
-                // Check if it's a file or folder
                 let fileType = detectFileType(from: file)
                 let item = ClipboardItem(content: file, type: fileType)
                 addItem(item)
@@ -108,7 +101,6 @@ class ClipboardManager: ObservableObject {
             return
         }
         
-        // Check for rich text
         if let rtf = NSPasteboard.general.data(forType: .rtf) {
             if let rtfString = String(data: rtf, encoding: .utf8) {
                 let item = ClipboardItem(content: rtfString, type: .richText, data: rtf)
@@ -120,11 +112,9 @@ class ClipboardManager: ObservableObject {
     
     private func addItem(_ item: ClipboardItem) {
         DispatchQueue.main.async {
-            // Remove duplicate items (except pinned ones)
             self.items.removeAll { $0.content == item.content && !$0.isPinned }
             self.items.insert(item, at: 0)
             
-            // Keep only last maxItems unpinned items
             let pinnedItems = self.items.filter { $0.isPinned }
             let unpinnedItems = self.items.filter { !$0.isPinned }
             if unpinnedItems.count > self.maxItems {
@@ -184,8 +174,6 @@ class ClipboardManager: ObservableObject {
         }
     }
     
-    // MARK: - Persistence
-    
     private func saveItems() {
         do {
             let encoded = try JSONEncoder().encode(items)
@@ -213,8 +201,6 @@ class ClipboardManager: ObservableObject {
         cancellables.removeAll()
     }
     
-    // MARK: - Helper Methods
-    
     private func detectImageType(from data: Data) -> String {
         if data.starts(with: [0xFF, 0xD8, 0xFF]) {
             return "jpg"
@@ -234,14 +220,12 @@ class ClipboardManager: ObservableObject {
         let isDirectory = url?.hasDirectoryPath ?? false
         
         if isDirectory {
-            return .file // You can add a new .folder type if you want
+            return .file
         }
         
         return .file
     }
 }
-
-// MARK: - Extensions
 
 extension Data {
     func sha256() -> String {

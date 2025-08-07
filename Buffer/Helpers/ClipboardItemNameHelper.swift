@@ -5,20 +5,15 @@ public struct ClipboardItemNameHelper {
     static func generateImageName(data: Data?) -> String {
         guard let data = data else { return "Image" }
         
-        do {
-            let image = NSImage(data: data)
-            guard let image = image else { return "Image" }
-            
-            let size = image.size
-            let width = Int(size.width)
-            let height = Int(size.height)
-            
-            // Detect image format
-            let format = detectImageFormat(from: data)
-            return "\(format) Image \(width)×\(height)"
-        } catch {
-            return "Image"
-        }
+        let image = NSImage(data: data)
+        guard let image = image else { return "Image" }
+        
+        let size = image.size
+        let width = Int(size.width)
+        let height = Int(size.height)
+        
+        let format = detectImageFormat(from: data)
+        return "\(format) Image \(width)×\(height)"
     }
     
     static func generateFileName(content: String) -> String {
@@ -27,12 +22,10 @@ public struct ClipboardItemNameHelper {
         let url = URL(string: content)
         let fileName = url?.lastPathComponent ?? content
         
-        // Handle directory paths
         if content.hasSuffix("/") {
             return fileName.isEmpty ? "Folder" : fileName
         }
         
-        // Handle files with extensions
         if let fileExtension = url?.pathExtension, !fileExtension.isEmpty {
             return fileName
         }
@@ -47,22 +40,18 @@ public struct ClipboardItemNameHelper {
             return content.count > 30 ? String(content.prefix(30)) + "..." : content 
         }
         
-        // If it's a file URL, use the filename
         if url.scheme == "file" {
             return url.lastPathComponent.isEmpty ? "File" : url.lastPathComponent
         }
         
-        // If it has a path extension, use the filename
         if !url.pathExtension.isEmpty {
             return url.lastPathComponent
         }
         
-        // Use the host if available
         if let host = url.host {
             return host
         }
         
-        // Fallback to truncated content
         return content.count > 30 ? String(content.prefix(30)) + "..." : content
     }
     
@@ -87,8 +76,6 @@ public struct ClipboardItemNameHelper {
     static func generateRichTextName(content: String) -> String {
         return generateTextName(content: content)
     }
-    
-    // MARK: - Helper Methods
     
     private static func detectImageFormat(from data: Data) -> String {
         if data.starts(with: [0xFF, 0xD8, 0xFF]) {

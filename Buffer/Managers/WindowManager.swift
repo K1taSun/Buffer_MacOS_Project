@@ -1,13 +1,13 @@
 import SwiftUI
 import AppKit
 
-class WindowManager: ObservableObject {
+class WindowManager: NSObject, ObservableObject {
     static let shared = WindowManager()
     private var window: NSWindow?
     private let windowSize = NSSize(width: 450, height: 600)
     private let animationDuration: TimeInterval = 0.25
     
-    private init() {}
+    private override init() {}
     
     func toggleWindow() {
         if window == nil {
@@ -77,7 +77,6 @@ class WindowManager: ObservableObject {
             window.toolbarStyle = .unified
         }
         
-        // Add window delegate to handle window closing
         window.delegate = self
     }
     
@@ -94,11 +93,9 @@ class WindowManager: ObservableObject {
         let screenFrame = screen.visibleFrame
         let windowFrame = window.frame
         
-        // Position window in the center of the screen
         let x = screenFrame.midX - windowFrame.width / 2
         let y = screenFrame.midY - windowFrame.height / 2
         
-        // Ensure window is fully visible on screen
         let finalX = max(screenFrame.minX, min(x, screenFrame.maxX - windowFrame.width))
         let finalY = max(screenFrame.minY, min(y, screenFrame.maxY - windowFrame.height))
         
@@ -124,15 +121,12 @@ class WindowManager: ObservableObject {
 // MARK: - NSWindowDelegate
 extension WindowManager: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        // Reset window reference when window is closed
         if let closingWindow = notification.object as? NSWindow, closingWindow === window {
             window = nil
         }
     }
     
     func windowDidResignKey(_ notification: Notification) {
-        // Optional: Hide window when it loses focus
-        // Uncomment the line below if you want this behavior
         // hideWindow()
     }
 } 

@@ -18,7 +18,6 @@ struct ClipboardItem: Identifiable, Codable {
         self.data = data
     }
     
-    // Funkcja do generowania czytelnej nazwy wyświetlanej
     var displayName: String {
         switch type {
         case .image:
@@ -34,9 +33,6 @@ struct ClipboardItem: Identifiable, Codable {
         }
     }
     
-    // Usunięto metody generateImageName, generateFileName, generateURLName, generateTextName, generateRichTextName
-    
-    // Funkcja do pobierania rozszerzenia pliku
     var fileExtension: String? {
         switch type {
         case .file:
@@ -76,7 +72,6 @@ enum ClipboardItemType: String, Codable {
         }
     }
     
-    // Funkcja do pobierania koloru dla typu
     var color: String {
         switch self {
         case .text: return "blue"
