@@ -3,7 +3,7 @@ import AppKit
 import Combine
 import CryptoKit
 
-class ClipboardManager: ObservableObject {
+final class ClipboardManager: ObservableObject {
     static let shared = ClipboardManager()
     @Published var items: [ClipboardItem] = []
     
@@ -14,7 +14,14 @@ class ClipboardManager: ObservableObject {
     private var isProcessing = false
     private let maxItems = 50
     private let checkInterval: TimeInterval = 0.3
-    private var cancellables = Set<AnyCancellable>()
+    private let savedItemsKey = "savedClipboardItems"
+    private let typeSortOrder: [ClipboardItemType: Int] = [
+        .text: 0,
+        .url: 1,
+        .file: 2,
+        .image: 3,
+        .richText: 4
+    ]
     
     private init() {
         startMonitoring()
@@ -110,16 +117,18 @@ class ClipboardManager: ObservableObject {
         }
     }
     
-    private func addItem(_ item: ClipboardItem) {
-        DispatchQueue.main.async {
+    func addItem(_ item: ClipboardItem) {
+        performOnMain {
+            if let pinnedIndex = self.items.firstIndex(where: { $0.content == item.content && $0.isPinned }) {
+                if let data = item.data {
+                    self.items[pinnedIndex].data = data
+                }
+                return
+            }
             self.items.removeAll { $0.content == item.content && !$0.isPinned }
             self.items.insert(item, at: 0)
             
-            let pinnedItems = self.items.filter { $0.isPinned }
-            let unpinnedItems = self.items.filter { !$0.isPinned }
-            if unpinnedItems.count > self.maxItems {
-                self.items = pinnedItems + Array(unpinnedItems.prefix(self.maxItems))
-            }
+            self.normalizeItemOrdering()
         }
     }
     
@@ -145,60 +154,76 @@ class ClipboardManager: ObservableObject {
     }
     
     func removeItem(_ item: ClipboardItem) {
-        DispatchQueue.main.async {
+        performOnMain {
             self.items.removeAll { $0.id == item.id }
             self.saveItems()
         }
     }
     
     func togglePin(_ item: ClipboardItem) {
-        DispatchQueue.main.async {
+        performOnMain {
             if let index = self.items.firstIndex(where: { $0.id == item.id }) {
                 self.items[index].isPinned.toggle()
+                self.normalizeItemOrdering()
                 self.saveItems()
             }
         }
     }
     
     func clearAll() {
-        DispatchQueue.main.async {
-            self.items.removeAll { !$0.isPinned }
+        performOnMain {
+            self.items.removeAll()
+            self.resetClipboardTracking()
             self.saveItems()
         }
     }
     
     func clearUnpinned() {
-        DispatchQueue.main.async {
+        performOnMain {
             self.items.removeAll { !$0.isPinned }
             self.saveItems()
         }
     }
     
-    private func saveItems() {
+    func saveItems() {
+        let snapshot = performOnMain { self.items }
         do {
-            let encoded = try JSONEncoder().encode(items)
-            UserDefaults.standard.set(encoded, forKey: "savedClipboardItems")
+            let encoded = try JSONEncoder().encode(snapshot)
+            UserDefaults.standard.set(encoded, forKey: savedItemsKey)
         } catch {
             print("Error saving clipboard items: \(error)")
         }
     }
     
-    private func loadSavedItems() {
+    func loadSavedItems() {
         do {
-            if let savedData = UserDefaults.standard.data(forKey: "savedClipboardItems") {
+            if let savedData = UserDefaults.standard.data(forKey: savedItemsKey) {
                 let decodedItems = try JSONDecoder().decode([ClipboardItem].self, from: savedData)
-                items = decodedItems
+                performOnMain {
+                    self.items = decodedItems
+                    self.lastContent = decodedItems.first(where: { $0.type == .text || $0.type == .url })?.content
+                    if let imageData = decodedItems.first(where: { $0.type == .image })?.data {
+                        self.lastImageHash = imageData.sha256()
+                    } else {
+                        self.lastImageHash = nil
+                    }
+                    self.lastChangeCount = NSPasteboard.general.changeCount
+                }
             }
         } catch {
             print("Error loading saved clipboard items: \(error)")
-            // Clear corrupted data
-            UserDefaults.standard.removeObject(forKey: "savedClipboardItems")
+            UserDefaults.standard.removeObject(forKey: savedItemsKey)
         }
     }
     
     deinit {
         stopMonitoring()
-        cancellables.removeAll()
+    }
+    
+    private func resetClipboardTracking() {
+        lastContent = nil
+        lastImageHash = nil
+        lastChangeCount = NSPasteboard.general.changeCount
     }
     
     private func detectImageType(from data: Data) -> String {
@@ -216,14 +241,99 @@ class ClipboardManager: ObservableObject {
     }
     
     private func detectFileType(from path: String) -> ClipboardItemType {
-        let url = URL(string: path)
-        let isDirectory = url?.hasDirectoryPath ?? false
-        
-        if isDirectory {
-            return .file
+        .file
+    }
+
+    private func sortItemsByFormat(_ items: inout [ClipboardItem]) {
+        items.sort { lhs, rhs in
+            let lhsKey = sortKey(for: lhs)
+            let rhsKey = sortKey(for: rhs)
+
+            if lhsKey.typeRank != rhsKey.typeRank {
+                return lhsKey.typeRank < rhsKey.typeRank
+            }
+
+            let formatComparison = lhsKey.formatKey.localizedCaseInsensitiveCompare(rhsKey.formatKey)
+            if formatComparison != .orderedSame {
+                return formatComparison == .orderedAscending
+            }
+
+            if lhs.timestamp != rhs.timestamp {
+                return lhs.timestamp > rhs.timestamp
+            }
+
+            return lhs.content.localizedCaseInsensitiveCompare(rhs.content) == .orderedAscending
         }
-        
-        return .file
+    }
+
+    private func sortKey(for item: ClipboardItem) -> (typeRank: Int, formatKey: String) {
+        let typeRank = typeSortOrder[item.type] ?? Int.max
+        let formatKey = formatSortKey(for: item)
+        return (typeRank, formatKey)
+    }
+
+    private func formatSortKey(for item: ClipboardItem) -> String {
+        switch item.type {
+        case .file:
+            let rawContent = item.content
+            if let url = URL(string: rawContent) {
+                let ext = url.pathExtension
+                if !ext.isEmpty { return ext.lowercased() }
+                return url.lastPathComponent.lowercased()
+            }
+            let sanitized = rawContent.hasPrefix("file://")
+                ? String(rawContent.dropFirst("file://".count))
+                : rawContent
+            let fallbackURL = URL(fileURLWithPath: sanitized)
+            let ext = fallbackURL.pathExtension
+            if !ext.isEmpty { return ext.lowercased() }
+            let lastPath = fallbackURL.lastPathComponent
+            return lastPath.isEmpty ? "zzz" : lastPath.lowercased()
+        case .image:
+            if let data = item.data {
+                return detectImageType(from: data).lowercased()
+            }
+            return "image"
+        case .url:
+            return URL(string: item.content)?.scheme?.lowercased() ?? "url"
+        case .text:
+            return "text"
+        case .richText:
+            return "richtext"
+        }
+    }
+
+    private func normalizeItemOrdering() {
+        let pinnedItems = items.filter { $0.isPinned }
+        var unpinnedItems = items.filter { !$0.isPinned }
+
+        sortItemsByFormat(&unpinnedItems)
+
+        if unpinnedItems.count > maxItems {
+            unpinnedItems = Array(unpinnedItems.prefix(maxItems))
+        }
+
+        items = pinnedItems + unpinnedItems
+    }
+
+    private func performOnMain(_ block: () -> Void) {
+        if Thread.isMainThread {
+            block()
+        } else {
+            DispatchQueue.main.sync(execute: block)
+        }
+    }
+    
+    private func performOnMain<T>(_ block: () -> T) -> T {
+        if Thread.isMainThread {
+            return block()
+        } else {
+            var result: T!
+            DispatchQueue.main.sync {
+                result = block()
+            }
+            return result
+        }
     }
 }
 

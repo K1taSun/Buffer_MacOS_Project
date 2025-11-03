@@ -1,192 +1,106 @@
-# Buffer - macOS Clipboard Manager
+# Buffer – macOS Clipboard Manager
 
-A powerful and elegant clipboard manager for macOS that runs in the menu bar, providing quick access to your clipboard history with support for text, images, files, and URLs.
+Buffer is a lightweight, privacy-friendly clipboard history app for macOS. It lives in your menu bar, watches the system pasteboard, and gives you a fast, keyboard-driven interface for anything you copied recently—text snippets, URLs, files, screenshots, and rich text.
 
-## Features
+## Why Buffer?
+- **Stay in flow** – summon the history window with `⌘`` or `⌘⇧V`, paste the item you need, keep working.
+- **Format-aware sorting** – items are grouped by type (Text → URLs → Files → Images → Rich Text) and then by extension/scheme so your brain finds things faster.
+- **Smart duplicates** – pin something important and Buffers refreshes the same entry when you copy it again instead of cluttering history.
+- **Visual polish** – hover/selection feedback, copy toast, animated pin buttons, image previews.
+- **No bloat** – 50 item default cap, respects the sandbox, no network calls.
 
-- 📋 **Multi-format Support**: Text, images, files, URLs, and rich text
-- 🔍 **Smart Search**: Filter and search through your clipboard history
-- 📌 **Pin Items**: Keep important items at the top of your history
-- 🎨 **Beautiful UI**: Modern, native macOS interface with smooth animations
-- ⌨️ **Global Shortcuts**: Quick access with Cmd+` or Cmd+Shift+V
-- 💾 **Persistent Storage**: Your clipboard history is saved between app launches
-- 🖼️ **Image Preview**: Click on images to view them in full size
-- 🎯 **Smart Filtering**: Filter by content type (text, images, files, URLs, pinned)
-
-## Requirements
-
-- macOS 15.4 or later
-- Xcode 15.0 or later (for building from source)
+## Feature Highlights
+- Menu bar UI with SwiftUI-driven history window
+- Global shortcuts (`⌘`` and `⌘⇧V`) with accessibility permission prompts
+- Text, URL, file, image (with preview), and rich text capture
+- Pin/unpin, delete, clear unpinned, clear all
+- Search bar plus quick filter chips (All, Text, Images, Files, URLs, Pinned)
+- Persistent history stored via `UserDefaults` with corrupt-data recovery
 
 ## Installation
+### Prerequisites
+```bash
+./setup.sh
+```
+The script installs tooling, fetches SwiftPM dependencies, and is safe to rerun after Xcode updates.
 
-### Option 1: Build from Source
+### Build from source
+```bash
+git clone https://github.com/yourusername/Buffer_MacOS_Project.git
+cd Buffer_MacOS_Project
+./build.sh
+```
+The script performs a clean build and optionally launches the app.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/Buffer_MacOS_Project.git
-   cd Buffer_MacOS_Project
-   ```
+### Open in Xcode
+```bash
+open Buffer.xcodeproj
+```
+Pick the *Buffer* scheme and hit `⌘R` to run.
 
-2. Build the project:
-   ```bash
-   ./build.sh
-   ```
+## Usage Cheat Sheet
+| Action | How |
+| --- | --- |
+| Toggle window | `⌘`` or `⌘⇧V` |
+| Search history | Start typing; matches are case-insensitive |
+| Filter by type | Use the chips (All / Text / Images / Files / URLs / Pinned) |
+| Copy item | Click, press Return, or use the context menu |
+| Pin / unpin | Pin icon or context menu |
+| Delete | Delete key or context menu |
+| Clear unpinned | Footer button |
+| Clear all | Footer button (pinned remain pinned) |
 
-3. The app will be built and you can choose to open it immediately.
-
-### Option 2: Download Release
-
-Download the latest release from the [Releases page](https://github.com/yourusername/Buffer_MacOS_Project/releases).
-
-## Usage
-
-### First Launch
-
-1. Launch Buffer from Applications or the build directory
-2. The app will appear in your menu bar with a clipboard icon
-3. Click the menu bar icon to open the clipboard history window
-4. Grant accessibility permissions when prompted (required for global shortcuts)
-
-### Global Shortcuts
-
-- **Cmd+`**: Toggle the clipboard history window
-- **Cmd+Shift+V**: Alternative shortcut to toggle the window
-
-### Using the Interface
-
-- **Copy Items**: Click on any item to copy it to your clipboard
-- **Pin Items**: Click the pin icon to keep an item at the top
-- **Search**: Use the search bar to find specific items
-- **Filter**: Use the filter buttons to show only specific content types
-- **Delete**: Right-click an item and select "Delete" to remove it
-- **Clear**: Use the "Clear Unpinned" or "Clear All" buttons in the footer
-
-### Image Support
-
-- Images are automatically detected and stored
-- Click on an image thumbnail to view it in full size
-- Image format is automatically detected (JPEG, PNG, GIF, etc.)
+### Sorting Details
+1. Pinned entries always stay at the top, in the order you pinned them.
+2. Unpinned items are grouped by type using this priority: `text < url < file < image < richText`.
+3. Files sort by normalized extension (fallback to filename); URLs sort by scheme; images sort by detected format (png, jpg, gif, webp, tiff).
+4. Within each format group, newest items appear first. If timestamps tie, Buffer falls back to case-insensitive title comparison for deterministic ordering.
 
 ## Permissions
+- **Accessibility** (`System Settings → Privacy & Security → Accessibility`) – required to intercept keyboard shortcuts.
+- **Clipboard access** – handled automatically via AppKit APIs.
 
-Buffer requires the following permissions to function properly:
-
-### Accessibility Permissions
-Required for global keyboard shortcuts. The app will prompt you to grant this permission on first launch.
-
-To manually grant:
-1. Go to System Preferences > Security & Privacy > Privacy > Accessibility
-2. Click the lock icon to make changes
-3. Add Buffer to the list of allowed applications
-
-### Clipboard Access
-The app needs access to monitor and modify the clipboard. This is handled automatically.
-
-## Troubleshooting
-
-### App Won't Launch
-
-1. **Check macOS Version**: Ensure you're running macOS 15.4 or later
-2. **Check Permissions**: Make sure Buffer has accessibility permissions
-3. **Rebuild**: Try rebuilding the project with `./build.sh`
-
-### Global Shortcuts Not Working
-
-1. **Grant Accessibility Permissions**: 
-   - Go to System Preferences > Security & Privacy > Privacy > Accessibility
-   - Add Buffer to the allowed applications
-   - Restart Buffer
-
-2. **Check for Conflicts**: Ensure no other apps are using Cmd+` or Cmd+Shift+V
-
-### Clipboard Not Updating
-
-1. **Restart the App**: Close and reopen Buffer
-2. **Check Permissions**: Ensure clipboard access is allowed
-3. **Clear Data**: Try clearing all clipboard items and restart
-
-### Build Issues
-
-1. **Update Xcode**: Ensure you have the latest version of Xcode
-2. **Clean Build**: Run `./build.sh` to clean and rebuild
-3. **Check Dependencies**: Ensure all required frameworks are available
-
-### Performance Issues
-
-1. **Limit History**: The app stores up to 50 items by default
-2. **Clear Old Items**: Use "Clear Unpinned" to remove old items
-3. **Restart**: Close and reopen the app if it becomes sluggish
-
-## Development
-
-### Project Structure
-
+## Project Structure
 ```
 Buffer_MacOS_Project/
-├── Buffer/
-│   ├── BufferApp.swift          # Main app entry point
+├── Buffer/                # App sources
+│   ├── BufferApp.swift    # Entry point
 │   ├── Models/
-│   │   └── ClipboardItem.swift  # Data model
 │   ├── Views/
-│   │   └── ClipboardView.swift  # Main UI
 │   ├── Managers/
-│   │   ├── ClipboardManager.swift  # Clipboard monitoring
-│   │   └── WindowManager.swift     # Window management
-│   ├── Helpers/
-│   │   └── ClipboardItemNameHelper.swift  # Display name generation
-│   └── Assets.xcassets/         # App icons and assets
-├── BufferTests/                 # Unit tests
-├── BufferUITests/               # UI tests
-└── build.sh                     # Build script
+│   └── Helpers/
+├── BufferTests/           # Unit tests
+├── BufferUITests/         # UI tests
+├── build.sh               # build helper
+├── setup.sh               # bootstrap helper
+└── FIXES.md               # changelog of applied fixes
 ```
 
-### Building for Development
-
-1. Open the project in Xcode:
-   ```bash
-   open Buffer.xcodeproj
-   ```
-
-2. Select the "Buffer" scheme and target
-
-3. Build and run (Cmd+R)
-
-### Testing
-
-Run the test suite:
+## Test
+Run everything:
 ```bash
 xcodebuild -project Buffer.xcodeproj -scheme Buffer test
 ```
+Only logic tests (faster iteration):
+```bash
+xcodebuild -project Buffer.xcodeproj -scheme Buffer \
+  -destination 'platform=macOS' \
+  -only-testing:BufferTests test
+```
 
-## Contributing
+## Maintenance
+- Build output (`DerivedData/`, `build/`, `.xcresult`, etc.) already ignored via `.gitignore`.
+- `./build.sh --clean` when the project misbehaves.
+- Remove corrupted history by deleting the `savedClipboardItems` key from `UserDefaults` (Preferences or `defaults delete`).
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Make your changes
-4. Add tests if applicable
-5. Commit your changes: `git commit -am 'Add feature'`
-6. Push to the branch: `git push origin feature-name`
-7. Submit a pull request
+## Roadmap Ideas
+- Export/import history
+- Custom shortcut configuration
+- Drag & drop support for items
+- History sync via iCloud or local network
 
 ## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT – see [`LICENSE`](LICENSE).
 
 ## Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Issues page](https://github.com/yourusername/Buffer_MacOS_Project/issues)
-2. Create a new issue with detailed information about your problem
-3. Include your macOS version and any error messages
-
-## Changelog
-
-### Version 1.0
-- Initial release
-- Multi-format clipboard support
-- Menu bar interface
-- Global keyboard shortcuts
-- Persistent storage
-- Image preview functionality
+Create an issue with macOS version, Xcode version, and reproduction steps: <https://github.com/yourusername/Buffer_MacOS_Project/issues>

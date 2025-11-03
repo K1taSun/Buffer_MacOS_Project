@@ -11,6 +11,7 @@ build/
 !default.perspectivev3
 xcuserdata/
 *.xcscmblueprint
+*.xccheckout
 
 # SwiftPM
 .build/
@@ -32,6 +33,14 @@ fastlane/test_output/
 *.moved-aside
 *.xcuserstate
 *.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings
+*.dSYM
+*.ipa
+
+# Xcode Reports
+*.xcresult
+*.xcactivitylog
+TestResults/
+TestResults.xcresult/
 
 # User settings
 .idea/
