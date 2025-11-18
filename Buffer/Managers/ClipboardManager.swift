@@ -3,6 +3,19 @@ import AppKit
 import Combine
 import CryptoKit
 
+private enum Config {
+    static let maxItems = 50
+    static let checkInterval: TimeInterval = 0.3
+    static let savedItemsKey = "savedClipboardItems"
+    static let typeSortOrder: [ClipboardItemType: Int] = [
+        .text: 0,
+        .url: 1,
+        .file: 2,
+        .image: 3,
+        .richText: 4
+    ]
+}
+
 final class ClipboardManager: ObservableObject {
     static let shared = ClipboardManager()
     @Published var items: [ClipboardItem] = []
@@ -12,16 +25,6 @@ final class ClipboardManager: ObservableObject {
     private var lastContent: String?
     private var lastImageHash: String?
     private var isProcessing = false
-    private let maxItems = 50
-    private let checkInterval: TimeInterval = 0.3
-    private let savedItemsKey = "savedClipboardItems"
-    private let typeSortOrder: [ClipboardItemType: Int] = [
-        .text: 0,
-        .url: 1,
-        .file: 2,
-        .image: 3,
-        .richText: 4
-    ]
     
     private init() {
         startMonitoring()
@@ -31,7 +34,7 @@ final class ClipboardManager: ObservableObject {
     private func startMonitoring() {
         stopMonitoring()
         
-        timer = Timer.scheduledTimer(withTimeInterval: checkInterval, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: Config.checkInterval, repeats: true) { [weak self] _ in
             self?.checkClipboard()
         }
         
@@ -66,55 +69,66 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        if let imageData = NSPasteboard.general.data(forType: .tiff) {
-            let imageHash = imageData.sha256()
-            guard imageHash != lastImageHash else { return }
-            lastImageHash = imageHash
-            
-            let imageType = detectImageType(from: imageData)
-            let item = ClipboardItem(content: "Image.\(imageType)", type: .image, data: imageData)
+        if processImageContent() { return }
+        if processStringContent() { return }
+        if processFileContent() { return }
+        if processRichTextContent() { return }
+    }
+    
+    private func processImageContent() -> Bool {
+        guard let imageData = NSPasteboard.general.data(forType: .tiff) else { return false }
+        
+        let imageHash = imageData.sha256()
+        guard imageHash != lastImageHash else { return true }
+        lastImageHash = imageHash
+        
+        let imageType = imageData.imageType
+        let item = ClipboardItem(content: "Image.\(imageType.rawValue)", type: .image, data: imageData)
+        addItem(item)
+        saveItems()
+        return true
+    }
+    
+    private func processStringContent() -> Bool {
+        guard let string = NSPasteboard.general.string(forType: .string) else { return false }
+        
+        guard string != lastContent else { return true }
+        lastContent = string
+        
+        let trimmedString = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedString.isEmpty, trimmedString.count > 1 else { return true }
+        
+        let item: ClipboardItem
+        if let url = URL(string: trimmedString), url.scheme != nil {
+            item = ClipboardItem(content: trimmedString, type: .url)
+        } else {
+            item = ClipboardItem(content: trimmedString, type: .text)
+        }
+        
+        addItem(item)
+        saveItems()
+        return true
+    }
+    
+    private func processFileContent() -> Bool {
+        guard let files = NSPasteboard.general.pasteboardItems?.compactMap({ $0.string(forType: .fileURL) }), !files.isEmpty else { return false }
+        
+        for file in files {
+            let item = ClipboardItem(content: file, type: .file)
             addItem(item)
-            saveItems()
-            return
         }
+        saveItems()
+        return true
+    }
+    
+    private func processRichTextContent() -> Bool {
+        guard let rtfData = NSPasteboard.general.data(forType: .rtf),
+              let rtfString = String(data: rtfData, encoding: .utf8) else { return false }
         
-        if let string = NSPasteboard.general.string(forType: .string) {
-            guard string != lastContent else { return }
-            lastContent = string
-            
-            guard !string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                  string.count > 1 else { return }
-            
-            let trimmedString = string.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            if let url = URL(string: trimmedString), url.scheme != nil {
-                let item = ClipboardItem(content: trimmedString, type: .url)
-                addItem(item)
-            } else {
-                let item = ClipboardItem(content: trimmedString, type: .text)
-                addItem(item)
-            }
-            saveItems()
-            return
-        }
-        
-        if let files = NSPasteboard.general.pasteboardItems?.compactMap({ $0.string(forType: .fileURL) }) {
-            for file in files {
-                let fileType = detectFileType(from: file)
-                let item = ClipboardItem(content: file, type: fileType)
-                addItem(item)
-            }
-            saveItems()
-            return
-        }
-        
-        if let rtf = NSPasteboard.general.data(forType: .rtf) {
-            if let rtfString = String(data: rtf, encoding: .utf8) {
-                let item = ClipboardItem(content: rtfString, type: .richText, data: rtf)
-                addItem(item)
-                saveItems()
-            }
-        }
+        let item = ClipboardItem(content: rtfString, type: .richText, data: rtfData)
+        addItem(item)
+        saveItems()
+        return true
     }
     
     func addItem(_ item: ClipboardItem) {
@@ -189,7 +203,7 @@ final class ClipboardManager: ObservableObject {
         let snapshot = performOnMain { self.items }
         do {
             let encoded = try JSONEncoder().encode(snapshot)
-            UserDefaults.standard.set(encoded, forKey: savedItemsKey)
+            UserDefaults.standard.set(encoded, forKey: Config.savedItemsKey)
         } catch {
             print("Error saving clipboard items: \(error)")
         }
@@ -197,7 +211,7 @@ final class ClipboardManager: ObservableObject {
     
     func loadSavedItems() {
         do {
-            if let savedData = UserDefaults.standard.data(forKey: savedItemsKey) {
+            if let savedData = UserDefaults.standard.data(forKey: Config.savedItemsKey) {
                 let decodedItems = try JSONDecoder().decode([ClipboardItem].self, from: savedData)
                 performOnMain {
                     self.items = decodedItems
@@ -212,7 +226,7 @@ final class ClipboardManager: ObservableObject {
             }
         } catch {
             print("Error loading saved clipboard items: \(error)")
-            UserDefaults.standard.removeObject(forKey: savedItemsKey)
+            UserDefaults.standard.removeObject(forKey: Config.savedItemsKey)
         }
     }
     
@@ -227,17 +241,7 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func detectImageType(from data: Data) -> String {
-        if data.starts(with: [0xFF, 0xD8, 0xFF]) {
-            return "jpg"
-        } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
-            return "png"
-        } else if data.starts(with: [0x47, 0x49, 0x46]) {
-            return "gif"
-        } else if data.starts(with: [0x52, 0x49, 0x46, 0x46]) {
-            return "webp"
-        } else {
-            return "tiff"
-        }
+        data.imageType.rawValue
     }
     
     private func detectFileType(from path: String) -> ClipboardItemType {
@@ -267,7 +271,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func sortKey(for item: ClipboardItem) -> (typeRank: Int, formatKey: String) {
-        let typeRank = typeSortOrder[item.type] ?? Int.max
+        let typeRank = Config.typeSortOrder[item.type] ?? Int.max
         let formatKey = formatSortKey(for: item)
         return (typeRank, formatKey)
     }
@@ -309,8 +313,8 @@ final class ClipboardManager: ObservableObject {
 
         sortItemsByFormat(&unpinnedItems)
 
-        if unpinnedItems.count > maxItems {
-            unpinnedItems = Array(unpinnedItems.prefix(maxItems))
+        if unpinnedItems.count > Config.maxItems {
+            unpinnedItems = Array(unpinnedItems.prefix(Config.maxItems))
         }
 
         items = pinnedItems + unpinnedItems
@@ -341,5 +345,17 @@ extension Data {
     func sha256() -> String {
         let hash = SHA256.hash(data: self)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+    
+    enum ImageType: String {
+        case jpg, png, gif, webp, tiff
+    }
+
+    var imageType: ImageType {
+        if self.starts(with: [0xFF, 0xD8, 0xFF]) { return .jpg }
+        if self.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return .png }
+        if self.starts(with: [0x47, 0x49, 0x46]) { return .gif }
+        if self.starts(with: [0x52, 0x49, 0x46, 0x46]) { return .webp }
+        return .tiff
     }
 } 

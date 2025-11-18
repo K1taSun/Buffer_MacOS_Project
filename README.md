@@ -102,5 +102,3 @@ xcodebuild -project Buffer.xcodeproj -scheme Buffer \
 ## License
 MIT – see [`LICENSE`](LICENSE).
 
-## Support
-Create an issue with macOS version, Xcode version, and reproduction steps: <https://github.com/yourusername/Buffer_MacOS_Project/issues>

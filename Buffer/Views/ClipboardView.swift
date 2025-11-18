@@ -225,12 +225,16 @@ struct ClipboardView: View {
                 Button("Clear Unpinned") { 
                     clipboardManager.clearUnpinned() 
                 }
+                .padding(10)
+                .contentShape(Rectangle())
                 .buttonStyle(.plain)
                 .foregroundColor(.orange)
-                
+
                 Button("Clear All") { 
                     clipboardManager.clearAll() 
                 }
+                .padding(10)
+                .contentShape(Rectangle())
                 .buttonStyle(.plain)
                 .foregroundColor(.red)
             }
@@ -266,20 +270,21 @@ struct FilterButton: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.caption)
+                .font(.footnote)
                 .fontWeight(.medium)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
                 .background(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(isSelected ? Color.blue : Color.clear)
                 )
                 .foregroundColor(isSelected ? .white : .primary)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14)
                         .stroke(isSelected ? Color.clear : Color.secondary.opacity(0.3), lineWidth: 1)
                 )
         }
+        .contentShape(Rectangle())
         .buttonStyle(.plain)
     }
 }
@@ -315,6 +320,7 @@ struct ClipboardItemView: View {
         .padding(.vertical, 10)
         .padding(.horizontal, 16)
         .background(itemBackground)
+        .contentShape(Rectangle())
         .modifier(GlowEffect(isHovered: isHovered, isSelected: isSelected))
         .scaleEffect(isSelected ? 1.02 : 1.0)
         .shadow(color: .black.opacity(isSelected ? 0.1 : 0), radius: 4, x: 0, y: 2)
@@ -340,11 +346,19 @@ struct ClipboardItemView: View {
                     .onTapGesture {
                         onImageTap?(nsImage)
                     }
+            } else if item.type == .file, let url = URL(string: item.content), !url.path.isEmpty {
+                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                Image(nsImage: icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
             } else {
                 Image(systemName: item.type.icon)
+                    .font(.system(size: 20))
                     .foregroundColor(.secondary)
-                    .frame(width: 24)
-                    .font(.system(size: 16))
+                    .frame(width: 44, height: 44)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
             }
         }
     }
@@ -393,6 +407,8 @@ struct ClipboardItemView: View {
                 .foregroundColor(item.isPinned ? .blue : .secondary)
                 .scaleEffect(isHovered ? 1.1 : 1.0)
                 .font(.system(size: 14))
+                .padding(8)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
