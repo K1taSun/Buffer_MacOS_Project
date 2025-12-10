@@ -462,8 +462,8 @@ SOFTWARE.
 
 **Nikita Parkovskyi**
 
-- GitHub: [@yourusername](https://github.com/yourusername)
-- Project Link: [https://github.com/yourusername/Buffer_MacOS_Project](https://github.com/yourusername/Buffer_MacOS_Project)
+- GitHub: [@K1taSun](https://github.com/https://github.com/K1taSun)
+- Project Link: [https://github.com/K1taSun/Buffer_MacOS_Project](https://github.com/K1taSun/Buffer_MacOS_Project)
 
 ---
 
