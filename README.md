@@ -87,6 +87,7 @@ Buffer is a native macOS application that enhances your productivity by maintain
   - Image previews with full-screen view
   - Copy confirmation toast notifications
   - Context menu support
+  - **🖱️ Drag & Drop**: Drag items directly from history to other apps
 
 - **⌨️ Keyboard Navigation**
   - Global hotkeys: `⌘`` (Command + Backtick) or `⌘⇧V` (Command + Shift + V)
@@ -417,7 +418,7 @@ Future enhancements under consideration:
 
 - [ ] Export/import history functionality
 - [ ] Custom keyboard shortcut configuration
-- [ ] Drag & drop support for items
+- [x] Drag & drop support for items
 - [ ] iCloud sync (optional, privacy-preserving)
 - [ ] History statistics and analytics
 - [ ] Custom themes and appearance options

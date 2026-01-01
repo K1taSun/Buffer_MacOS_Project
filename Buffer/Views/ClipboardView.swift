@@ -146,6 +146,9 @@ struct ClipboardView: View {
                                     clipboardManager.copyItem(item)
                                     triggerCopyFeedback()
                                 }
+                                .onDrag {
+                                    item.itemProvider
+                                }
                         }
                     }
                     .padding(.vertical, 8)
