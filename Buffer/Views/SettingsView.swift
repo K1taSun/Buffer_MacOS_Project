@@ -77,9 +77,11 @@ struct SettingsView: View {
     private func startRecording() {
         isRecording = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Ignore nacisnienie
-            if event.modifierFlags.intersection(.deviceIndependentFlagsMask).isEmpty && event.keyCode > 0 {
-                
+            // Cancel on Escape
+            if event.keyCode == 53 {
+                stopRecording()
+                return nil
+            }
             
             shortcutManager.setShortcut(event: event)
             stopRecording()
