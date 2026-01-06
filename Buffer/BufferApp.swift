@@ -20,12 +20,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var localMonitor: Any?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        requestAccessibilityPermissions()
+        // Najpierw ustaw politykę aktywacji
+        NSApp.setActivationPolicy(.accessory)
         
+        // Następnie skonfiguruj monitory skrótów
         setupGlobalMonitor()
         setupLocalMonitor()
         
-        NSApp.setActivationPolicy(.accessory)
+        // Na końcu poproś o uprawnienia i aktywuj aplikację
+        requestAccessibilityPermissions()
+        
+        // Aktywacja aplikacji natychmiast po starcie - gotowa do odbierania skrótów
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
     
     private func requestAccessibilityPermissions() {
@@ -41,10 +49,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             _ = self?.handleKeyEvent(event)
         }
-        
-        if globalMonitor == nil {
-            print("Warning: Global monitor could not be created. Accessibility permissions may be required.")
-        }
     }
     
     private func setupLocalMonitor() {
@@ -58,9 +62,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         if ShortcutManager.shared.matches(event) {
-            DispatchQueue.main.async {
-                WindowManager.shared.toggleWindow()
-            }
+            // Bezpośrednie wywołanie na głównym wątku - już jesteśmy w monitorze
+            WindowManager.shared.toggleWindow()
             return true
         }
         

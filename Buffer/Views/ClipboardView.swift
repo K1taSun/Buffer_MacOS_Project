@@ -12,9 +12,15 @@ struct ClipboardView: View {
     private var filteredItems: [ClipboardItem] {
         let items = clipboardManager.items
         
-        // Apply search filter
-        let searchFiltered = searchText.isEmpty ? items : items.filter { 
-            $0.content.localizedCaseInsensitiveContains(searchText) 
+        // Apply search filter - tylko gdy potrzebne
+        let searchFiltered: [ClipboardItem]
+        if searchText.isEmpty {
+            searchFiltered = items
+        } else {
+            let lowerSearch = searchText.lowercased()
+            searchFiltered = items.filter { 
+                $0.content.lowercased().contains(lowerSearch)
+            }
         }
         
         // Apply type filter
@@ -41,7 +47,7 @@ struct ClipboardView: View {
             contentView
             footerView
         }
-        .frame(width: 320, height: 480)
+        .frame(width: 450, height: 600)
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.95)
         .onAppear(perform: setupAppearance)

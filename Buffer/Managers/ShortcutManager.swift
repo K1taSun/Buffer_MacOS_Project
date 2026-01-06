@@ -56,19 +56,19 @@ class ShortcutManager: ObservableObject {
     }
     
     func matches(_ event: NSEvent) -> Bool {
-        guard let shortcut = shortcut else {
-            // Default fallback if no shortcut is set: Cmd + Shift + V
+        // Sprawdź najpierw domyślny skrót Cmd+Shift+V (keyCode 9 = 'v')
+        let isDefaultShortcut = event.modifierFlags.contains([.command, .shift]) && 
+                                event.keyCode == 9
+        
+        if let shortcut = shortcut {
             let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            if eventModifiers.contains(.command) && eventModifiers.contains(.shift) && event.keyCode == 9 { // 9 is 'v'
-                return true
-            }
-            return false
+            let shortcutModifiers = shortcut.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let matchesCustom = event.keyCode == shortcut.keyCode && eventModifiers == shortcutModifiers
+            return matchesCustom || isDefaultShortcut
         }
         
-        let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        let shortcutModifiers = shortcut.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        
-        return event.keyCode == shortcut.keyCode && eventModifiers == shortcutModifiers
+        // Default fallback: Cmd + Shift + V
+        return isDefaultShortcut
     }
     
     private func saveShortcut() {

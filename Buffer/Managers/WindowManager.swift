@@ -4,7 +4,7 @@ import AppKit
 class WindowManager: NSObject, ObservableObject {
     static let shared = WindowManager()
     private var window: NSWindow?
-    private let windowSize = NSSize(width: 320, height: 480)
+    private let windowSize = NSSize(width: 380, height: 400)
     private let animationDuration: TimeInterval = 0.25
     
     private override init() {}
@@ -23,9 +23,12 @@ class WindowManager: NSObject, ObservableObject {
         } else {
             guard let window = window else { return }
             
+            // Aktywacja aplikacji przed pokazaniem okna
+            NSApp.activate(ignoringOtherApps: true)
+            
             window.alphaValue = 0
             window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
+            window.orderFrontRegardless()
             
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = animationDuration
@@ -48,6 +51,9 @@ class WindowManager: NSObject, ObservableObject {
     }
     
     private func createWindow() {
+        // Aktywacja aplikacji przed utworzeniem okna
+        NSApp.activate(ignoringOtherApps: true)
+        
         let window = NSWindow(
             contentRect: NSRect(origin: .zero, size: windowSize),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
