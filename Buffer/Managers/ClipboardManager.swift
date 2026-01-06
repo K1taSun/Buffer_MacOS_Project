@@ -5,7 +5,7 @@ import CryptoKit
 
 private enum Config {
     static let maxItems = 50
-    static let checkInterval: TimeInterval = 0.3
+    static let checkInterval: TimeInterval = 0.5 // Zwiększone z 0.3 dla lepszej wydajności
     static let savedItemsKey = "savedClipboardItems"
     static let typeSortOrder: [ClipboardItemType: Int] = [
         .text: 0,
@@ -25,6 +25,7 @@ final class ClipboardManager: ObservableObject {
     private var lastContent: String?
     private var lastImageHash: String?
     private var isProcessing = false
+    private var saveWorkItem: DispatchWorkItem?
     
     private init() {
         startMonitoring()
@@ -50,17 +51,16 @@ final class ClipboardManager: ObservableObject {
     
     private func checkClipboard() {
         guard !isProcessing else { return }
-        isProcessing = true
         
         let changeCount = NSPasteboard.general.changeCount
         guard changeCount != lastChangeCount else {
-            isProcessing = false
             return
         }
         
+        isProcessing = true
         lastChangeCount = changeCount
         
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        DispatchQueue.global(qos: .utility).async { [weak self] in
             self?.processClipboardContent()
             DispatchQueue.main.async {
                 self?.isProcessing = false
@@ -69,8 +69,9 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        if processImageContent() { return }
+        // Optymalizacja: sprawdzaj w kolejności prawdopodobieństwa użycia
         if processStringContent() { return }
+        if processImageContent() { return }
         if processFileContent() { return }
         if processRichTextContent() { return }
     }
@@ -200,13 +201,24 @@ final class ClipboardManager: ObservableObject {
     }
     
     func saveItems() {
-        let snapshot = performOnMain { self.items }
-        do {
-            let encoded = try JSONEncoder().encode(snapshot)
-            UserDefaults.standard.set(encoded, forKey: Config.savedItemsKey)
-        } catch {
-            print("Error saving clipboard items: \(error)")
+        // Opóźnione zapisywanie - batch saves dla lepszej wydajności
+        saveWorkItem?.cancel()
+        
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            let snapshot = self.performOnMain { self.items }
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    let encoded = try JSONEncoder().encode(snapshot)
+                    UserDefaults.standard.set(encoded, forKey: Config.savedItemsKey)
+                } catch {
+                    print("Error saving clipboard items: \(error)")
+                }
+            }
         }
+        
+        saveWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
     }
     
     func loadSavedItems() {
