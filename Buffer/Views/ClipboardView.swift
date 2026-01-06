@@ -41,7 +41,7 @@ struct ClipboardView: View {
             contentView
             footerView
         }
-        .frame(width: 450, height: 600)
+        .frame(width: 320, height: 480)
         .opacity(isAppearing ? 1 : 0)
         .scaleEffect(isAppearing ? 1 : 0.95)
         .onAppear(perform: setupAppearance)

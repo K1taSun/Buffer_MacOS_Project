@@ -4,7 +4,7 @@ import AppKit
 class WindowManager: NSObject, ObservableObject {
     static let shared = WindowManager()
     private var window: NSWindow?
-    private let windowSize = NSSize(width: 450, height: 600)
+    private let windowSize = NSSize(width: 320, height: 480)
     private let animationDuration: TimeInterval = 0.25
     
     private override init() {}
