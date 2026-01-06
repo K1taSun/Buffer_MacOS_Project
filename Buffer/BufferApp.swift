@@ -53,14 +53,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command) && event.characters == "`" {
-            DispatchQueue.main.async {
-                WindowManager.shared.toggleWindow()
-            }
-            return true
-        }
-        
-        if event.modifierFlags.contains([.command, .shift]) && event.characters == "v" {
+        if ShortcutManager.shared.matches(event) {
             DispatchQueue.main.async {
                 WindowManager.shared.toggleWindow()
             }
