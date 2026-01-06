@@ -41,6 +41,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             _ = self?.handleKeyEvent(event)
         }
+        
+        if globalMonitor == nil {
+            print("Warning: Global monitor could not be created. Accessibility permissions may be required.")
+        }
     }
     
     private func setupLocalMonitor() {

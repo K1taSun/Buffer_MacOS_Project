@@ -87,10 +87,12 @@ class WindowManager: NSObject, ObservableObject {
     }
     
     private func positionWindow() {
-        guard let window = window,
-              let screen = NSScreen.main else { return }
+        guard let window = window else { return }
         
-        let screenFrame = screen.visibleFrame
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        guard let targetScreen = screen else { return }
+        
+        let screenFrame = targetScreen.visibleFrame
         let windowFrame = window.frame
         
         let x = screenFrame.midX - windowFrame.width / 2

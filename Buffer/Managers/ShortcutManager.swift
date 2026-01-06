@@ -58,7 +58,8 @@ class ShortcutManager: ObservableObject {
     func matches(_ event: NSEvent) -> Bool {
         guard let shortcut = shortcut else {
             // Default fallback if no shortcut is set: Cmd + Shift + V
-            if event.modifierFlags.contains([.command, .shift]) && event.keyCode == 9 { // 9 is 'v'
+            let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if eventModifiers.contains(.command) && eventModifiers.contains(.shift) && event.keyCode == 9 { // 9 is 'v'
                 return true
             }
             return false
