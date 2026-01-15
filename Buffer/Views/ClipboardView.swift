@@ -7,13 +7,20 @@ struct ClipboardView: View {
     @State private var selectedFilter: ClipboardFilter = .all
     @State private var previewedImage: ImagePreviewData? = nil
     @State private var showCopyFeedback = false
+    @State private var showSettings = false
     
     private var filteredItems: [ClipboardItem] {
         let items = clipboardManager.items
         
-        // Apply search filter
-        let searchFiltered = searchText.isEmpty ? items : items.filter { 
-            $0.content.localizedCaseInsensitiveContains(searchText) 
+        // Apply search filter - tylko gdy potrzebne
+        let searchFiltered: [ClipboardItem]
+        if searchText.isEmpty {
+            searchFiltered = items
+        } else {
+            let lowerSearch = searchText.lowercased()
+            searchFiltered = items.filter { 
+                $0.content.lowercased().contains(lowerSearch)
+            }
         }
         
         // Apply type filter
@@ -46,6 +53,9 @@ struct ClipboardView: View {
         .onAppear(perform: setupAppearance)
         .sheet(item: $previewedImage) { preview in
             ImagePreviewSheet(image: preview.image)
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
         .overlay(
             Group {
@@ -87,7 +97,7 @@ struct ClipboardView: View {
             HStack(spacing: 8) {
                 TextField("Search", text: $searchText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(width: 180)
+                    .frame(width: 140)
                 
                 Button(action: {
                     searchText = ""
@@ -97,6 +107,15 @@ struct ClipboardView: View {
                 }
                 .buttonStyle(.plain)
                 .opacity(searchText.isEmpty ? 0 : 1)
+                
+                Button(action: {
+                    showSettings = true
+                }) {
+                    Image(systemName: "gearshape")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
             }
         }
         .padding()
@@ -145,6 +164,9 @@ struct ClipboardView: View {
                                 .onTapGesture { 
                                     clipboardManager.copyItem(item)
                                     triggerCopyFeedback()
+                                }
+                                .onDrag {
+                                    item.itemProvider
                                 }
                         }
                     }

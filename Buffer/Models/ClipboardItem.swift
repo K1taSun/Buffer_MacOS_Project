@@ -81,4 +81,32 @@ enum ClipboardItemType: String, Codable {
         case .richText: return "indigo"
         }
     }
-} 
+}
+
+extension ClipboardItem {
+    var itemProvider: NSItemProvider {
+        switch type {
+        case .text:
+            return NSItemProvider(object: content as NSString)
+        case .url:
+            if let url = URL(string: content) {
+                return NSItemProvider(object: url as NSURL)
+            }
+            return NSItemProvider(object: content as NSString)
+        case .image:
+            if let data = data, let image = NSImage(data: data) {
+                return NSItemProvider(object: image)
+            }
+            return NSItemProvider()
+        case .file:
+            if let url = URL(string: content) {
+                return NSItemProvider(object: url as NSURL)
+            }
+            return NSItemProvider(object: content as NSString)
+        case .richText:
+            // For rich text, we provide it as plain text for compatibility
+            // or we could implement proper RTF support if needed
+            return NSItemProvider(object: content as NSString)
+        }
+    }
+}

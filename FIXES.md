@@ -111,6 +111,18 @@ This document outlines all the issues discovered during the debugging process an
 **Files Modified**:
 - `README.md`
 
+### 10. **Drag & Drop Support** 🖱️
+**Issue**: Missing ability to drag items from clipboard history to other applications.
+
+**Fix**:
+- Implemented `NSItemProvider` generation for all clipboard item types
+- Added drag support to `ClipboardItemView`
+- Supported dragging of Text, URLs, Files, and Images
+
+**Files Modified**:
+- `Buffer/Models/ClipboardItem.swift`
+- `Buffer/Views/ClipboardView.swift`
+
 ## Performance Improvements
 
 ### 1. **Clipboard Monitoring**
@@ -175,7 +187,6 @@ This document outlines all the issues discovered during the debugging process an
 
 ### 3. **User Experience**
 - Add clipboard item preview for more formats
-- Add drag and drop support
 - Add clipboard history search improvements
 - Add customizable themes
 
@@ -188,5 +199,6 @@ The Buffer macOS project has been significantly improved with:
 - ✅ Added comprehensive error handling
 - ✅ Created proper development workflow
 - ✅ Added extensive documentation
+- ✅ Added Drag & Drop support
 
-The app is now ready for production use and further development. 
+The app is now ready for production use and further development.
