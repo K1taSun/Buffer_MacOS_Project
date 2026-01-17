@@ -5,7 +5,7 @@ import CryptoKit
 
 private enum Config {
     static let maxItems = 50
-    static let checkInterval: TimeInterval = 0.5 // Zwiększone z 0.3 dla lepszej wydajności
+    static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
     static let typeSortOrder: [ClipboardItemType: Int] = [
         .text: 0,
@@ -27,10 +27,57 @@ final class ClipboardManager: ObservableObject {
     private var isProcessing = false
     private var saveWorkItem: DispatchWorkItem?
     
+    private let fileManager = FileManager.default
+    
     private init() {
+        createImagesDirectoryIfNeeded()
         startMonitoring()
         loadSavedItems()
     }
+    
+    // MARK: - File System Helpers
+    
+    private var imagesDirectoryURL: URL? {
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let bufferURL = appSupport.appendingPathComponent("Buffer", isDirectory: true)
+        let imagesURL = bufferURL.appendingPathComponent("Images", isDirectory: true)
+        return imagesURL
+    }
+    
+    private func createImagesDirectoryIfNeeded() {
+        guard let url = imagesDirectoryURL else { return }
+        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+    }
+    
+    private func saveImageToDisk(_ data: Data) -> String? {
+        guard let imagesDir = imagesDirectoryURL else { return nil }
+        let fileName = UUID().uuidString
+        let fileURL = imagesDir.appendingPathComponent(fileName)
+        
+        do {
+            try data.write(to: fileURL)
+            return fileName
+        } catch {
+            print("Error saving image to disk: \(error)")
+            return nil
+        }
+    }
+    
+    private func loadImageFromDisk(fileName: String) -> Data? {
+        guard let imagesDir = imagesDirectoryURL else { return nil }
+        let fileURL = imagesDir.appendingPathComponent(fileName)
+        return try? Data(contentsOf: fileURL)
+    }
+    
+    private func deleteImageFromDisk(fileName: String) {
+        guard let imagesDir = imagesDirectoryURL else { return }
+        let fileURL = imagesDir.appendingPathComponent(fileName)
+        try? fileManager.removeItem(at: fileURL)
+    }
+    
+    // MARK: - Monitoring
     
     private func startMonitoring() {
         stopMonitoring()
@@ -69,7 +116,6 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        // Optymalizacja: sprawdzaj w kolejności prawdopodobieństwa użycia
         if processStringContent() { return }
         if processImageContent() { return }
         if processFileContent() { return }
@@ -83,8 +129,19 @@ final class ClipboardManager: ObservableObject {
         guard imageHash != lastImageHash else { return true }
         lastImageHash = imageHash
         
-        let imageType = imageData.imageType
-        let item = ClipboardItem(content: "Image.\(imageType.rawValue)", type: .image, data: imageData)
+        // Save image to disk
+        let imagePath = saveImageToDisk(imageData)
+        
+        // detect type using helper
+        let format = ClipboardItemNameHelper.detectImageFormat(from: imageData)
+        
+        let item = ClipboardItem(
+            content: "Image.\(format)",
+            type: .image,
+            data: imageData, // Set data for immediate UI use
+            imagePath: imagePath
+        )
+        
         addItem(item)
         saveItems()
         return true
@@ -126,6 +183,8 @@ final class ClipboardManager: ObservableObject {
         guard let rtfData = NSPasteboard.general.data(forType: .rtf),
               let rtfString = String(data: rtfData, encoding: .utf8) else { return false }
         
+        // For rich text, we store data in memory (it's small usually) or we could refactor similarly if needed.
+        // Assuming RTF is small enough for now, but to be consistent with Item model, we pass data.
         let item = ClipboardItem(content: rtfString, type: .richText, data: rtfData)
         addItem(item)
         saveItems()
@@ -134,12 +193,14 @@ final class ClipboardManager: ObservableObject {
     
     func addItem(_ item: ClipboardItem) {
         performOnMain {
+            // Check for duplicate pinned items
             if let pinnedIndex = self.items.firstIndex(where: { $0.content == item.content && $0.isPinned }) {
-                if let data = item.data {
-                    self.items[pinnedIndex].data = data
-                }
+                // Update existing pinned item
+                self.items[pinnedIndex].data = item.data
+                self.items[pinnedIndex].imagePath = item.imagePath // Update path if changed
                 return
             }
+            // Remove unpinned duplicates
             self.items.removeAll { $0.content == item.content && !$0.isPinned }
             self.items.insert(item, at: 0)
             
@@ -170,6 +231,11 @@ final class ClipboardManager: ObservableObject {
     
     func removeItem(_ item: ClipboardItem) {
         performOnMain {
+            // Delete image file if exists
+            if let imagePath = item.imagePath {
+                self.deleteImageFromDisk(fileName: imagePath)
+            }
+            
             self.items.removeAll { $0.id == item.id }
             self.saveItems()
         }
@@ -187,6 +253,13 @@ final class ClipboardManager: ObservableObject {
     
     func clearAll() {
         performOnMain {
+            // Cleanup all image files
+            for item in self.items {
+                if let imagePath = item.imagePath {
+                    self.deleteImageFromDisk(fileName: imagePath)
+                }
+            }
+            
             self.items.removeAll()
             self.resetClipboardTracking()
             self.saveItems()
@@ -195,13 +268,19 @@ final class ClipboardManager: ObservableObject {
     
     func clearUnpinned() {
         performOnMain {
+            // Cleanup unpinned image files
+            for item in self.items where !item.isPinned {
+                if let imagePath = item.imagePath {
+                    self.deleteImageFromDisk(fileName: imagePath)
+                }
+            }
+            
             self.items.removeAll { !$0.isPinned }
             self.saveItems()
         }
     }
     
     func saveItems() {
-        // Opóźnione zapisywanie - batch saves dla lepszej wydajności
         saveWorkItem?.cancel()
         
         let workItem = DispatchWorkItem { [weak self] in
@@ -209,6 +288,7 @@ final class ClipboardManager: ObservableObject {
             let snapshot = self.performOnMain { self.items }
             DispatchQueue.global(qos: .utility).async {
                 do {
+                    // This will encode items. ClipboardItem.encode skips 'data', only saving 'imagePath'
                     let encoded = try JSONEncoder().encode(snapshot)
                     UserDefaults.standard.set(encoded, forKey: Config.savedItemsKey)
                 } catch {
@@ -224,12 +304,20 @@ final class ClipboardManager: ObservableObject {
     func loadSavedItems() {
         do {
             if let savedData = UserDefaults.standard.data(forKey: Config.savedItemsKey) {
-                let decodedItems = try JSONDecoder().decode([ClipboardItem].self, from: savedData)
+                var decodedItems = try JSONDecoder().decode([ClipboardItem].self, from: savedData)
+                
+                // Hydrate data from disk for images
+                for i in 0..<decodedItems.count {
+                    if decodedItems[i].type == .image, let path = decodedItems[i].imagePath {
+                         decodedItems[i].data = self.loadImageFromDisk(fileName: path)
+                    }
+                }
+                
                 performOnMain {
                     self.items = decodedItems
                     self.lastContent = decodedItems.first(where: { $0.type == .text || $0.type == .url })?.content
-                    if let imageData = decodedItems.first(where: { $0.type == .image })?.data {
-                        self.lastImageHash = imageData.sha256()
+                    if let imageItem = decodedItems.first(where: { $0.type == .image }), let data = imageItem.data {
+                        self.lastImageHash = data.sha256()
                     } else {
                         self.lastImageHash = nil
                     }
@@ -238,6 +326,7 @@ final class ClipboardManager: ObservableObject {
             }
         } catch {
             print("Error loading saved clipboard items: \(error)")
+            // If decoding fails (maybe old format without imagePath logic?), clear history to be safe
             UserDefaults.standard.removeObject(forKey: Config.savedItemsKey)
         }
     }
@@ -252,14 +341,6 @@ final class ClipboardManager: ObservableObject {
         lastChangeCount = NSPasteboard.general.changeCount
     }
     
-    private func detectImageType(from data: Data) -> String {
-        data.imageType.rawValue
-    }
-    
-    private func detectFileType(from path: String) -> ClipboardItemType {
-        .file
-    }
-
     private func sortItemsByFormat(_ items: inout [ClipboardItem]) {
         items.sort { lhs, rhs in
             let lhsKey = sortKey(for: lhs)
@@ -307,7 +388,7 @@ final class ClipboardManager: ObservableObject {
             return lastPath.isEmpty ? "zzz" : lastPath.lowercased()
         case .image:
             if let data = item.data {
-                return detectImageType(from: data).lowercased()
+                return ClipboardItemNameHelper.detectImageFormat(from: data).lowercased()
             }
             return "image"
         case .url:
@@ -326,17 +407,24 @@ final class ClipboardManager: ObservableObject {
         sortItemsByFormat(&unpinnedItems)
 
         if unpinnedItems.count > Config.maxItems {
+            // Make sure to delete files for items that are dropping off the list!
+            let itemsToRemove = unpinnedItems.dropFirst(Config.maxItems)
+            for item in itemsToRemove {
+                if let imagePath = item.imagePath {
+                    deleteImageFromDisk(fileName: imagePath)
+                }
+            }
             unpinnedItems = Array(unpinnedItems.prefix(Config.maxItems))
         }
 
         items = pinnedItems + unpinnedItems
     }
 
-    private func performOnMain(_ block: () -> Void) {
+    private func performOnMain(_ block: @escaping () -> Void) {
         if Thread.isMainThread {
             block()
         } else {
-            DispatchQueue.main.sync(execute: block)
+            DispatchQueue.main.async(execute: block) // Changed to async to avoid potential deadlocks
         }
     }
     
@@ -357,17 +445,5 @@ extension Data {
     func sha256() -> String {
         let hash = SHA256.hash(data: self)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
-    }
-    
-    enum ImageType: String {
-        case jpg, png, gif, webp, tiff
-    }
-
-    var imageType: ImageType {
-        if self.starts(with: [0xFF, 0xD8, 0xFF]) { return .jpg }
-        if self.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return .png }
-        if self.starts(with: [0x47, 0x49, 0x46]) { return .gif }
-        if self.starts(with: [0x52, 0x49, 0x46, 0x46]) { return .webp }
-        return .tiff
     }
 } 

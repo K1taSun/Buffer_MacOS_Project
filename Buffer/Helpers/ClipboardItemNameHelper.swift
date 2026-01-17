@@ -77,7 +77,7 @@ public struct ClipboardItemNameHelper {
         return generateTextName(content: content)
     }
     
-    private static func detectImageFormat(from data: Data) -> String {
+    public static func detectImageFormat(from data: Data) -> String {
         if data.starts(with: [0xFF, 0xD8, 0xFF]) {
             return "JPEG"
         } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {

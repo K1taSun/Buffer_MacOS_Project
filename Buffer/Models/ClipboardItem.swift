@@ -7,15 +7,44 @@ struct ClipboardItem: Identifiable, Codable {
     let type: ClipboardItemType
     let timestamp: Date
     var isPinned: Bool
+    var imagePath: String?
+    
+    // Data is not encoded/decoded automatically
     var data: Data?
     
-    init(content: String, type: ClipboardItemType, data: Data? = nil) {
+    enum CodingKeys: String, CodingKey {
+        case id, content, type, timestamp, isPinned, imagePath
+    }
+    
+    init(content: String, type: ClipboardItemType, data: Data? = nil, imagePath: String? = nil) {
         self.id = UUID()
         self.content = content
         self.type = type
         self.timestamp = Date()
         self.isPinned = false
         self.data = data
+        self.imagePath = imagePath
+    }
+    
+    // Custom decoding to handle legacy data if needed, or just default
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        content = try container.decode(String.self, forKey: .content)
+        type = try container.decode(ClipboardItemType.self, forKey: .type)
+        timestamp = try container.decode(Date.self, forKey: .timestamp)
+        isPinned = try container.decode(Bool.self, forKey: .isPinned)
+        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(content, forKey: .content)
+        try container.encode(type, forKey: .type)
+        try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(isPinned, forKey: .isPinned)
+        try container.encode(imagePath, forKey: .imagePath)
     }
     
     var displayName: String {
@@ -39,14 +68,7 @@ struct ClipboardItem: Identifiable, Codable {
             return URL(string: content)?.pathExtension
         case .image:
             if let data = data {
-                // Sprawdź typ obrazu na podstawie danych
-                if data.starts(with: [0xFF, 0xD8, 0xFF]) {
-                    return "jpg"
-                } else if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) {
-                    return "png"
-                } else if data.starts(with: [0x47, 0x49, 0x46]) {
-                    return "gif"
-                }
+                return ClipboardItemNameHelper.detectImageFormat(from: data).lowercased()
             }
             return nil
         default:

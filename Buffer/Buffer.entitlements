@@ -8,6 +8,8 @@
 	<false/>
 	<key>com.apple.security.network.server</key>
 	<false/>
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
 	<key>com.apple.security.temporary-exception.apple-events</key>
 	<true/>
 </dict>
