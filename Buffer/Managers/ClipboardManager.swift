@@ -116,9 +116,10 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        if processStringContent() { return }
-        if processImageContent() { return }
+        // Check for files first, as some apps put both file and string representations
         if processFileContent() { return }
+        if processImageContent() { return }
+        if processStringContent() { return }
         if processRichTextContent() { return }
     }
     
@@ -169,12 +170,23 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processFileContent() -> Bool {
-        guard let files = NSPasteboard.general.pasteboardItems?.compactMap({ $0.string(forType: .fileURL) }), !files.isEmpty else { return false }
+        guard let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+              !urls.isEmpty else { return false }
         
-        for file in files {
-            let item = ClipboardItem(content: file, type: .file)
-            addItem(item)
-        }
+        // Filter for file URLs
+        let fileURLs = urls.filter { $0.isFileURL }
+        guard !fileURLs.isEmpty else { return false }
+        
+        // Combine paths with newlines to store multiple files in one item
+        let combinedPaths = fileURLs.map { $0.path }.joined(separator: "\n")
+        
+        // Check if this is a duplicate of the last processed content to avoid loops
+        // (We use a simple check, though files don't usually jitter like logic might)
+        if combinedPaths == lastContent { return true }
+        lastContent = combinedPaths
+        
+        let item = ClipboardItem(content: combinedPaths, type: .file)
+        addItem(item)
         saveItems()
         return true
     }
@@ -219,9 +231,10 @@ final class ClipboardManager: ObservableObject {
                 NSPasteboard.general.setData(data, forType: .tiff)
             }
         case .file:
-            if let url = URL(string: item.content) {
-                NSPasteboard.general.setString(url.path, forType: .fileURL)
-            }
+            // Split content back into paths
+            let paths = item.content.components(separatedBy: "\n")
+            let urls = paths.map { URL(fileURLWithPath: $0) as NSURL }
+            NSPasteboard.general.writeObjects(urls)
         case .richText:
             if let data = item.data {
                 NSPasteboard.general.setData(data, forType: .rtf)

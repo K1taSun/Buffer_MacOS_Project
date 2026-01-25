@@ -19,15 +19,22 @@ public struct ClipboardItemNameHelper {
     static func generateFileName(content: String) -> String {
         guard !content.isEmpty else { return "File" }
         
-        let url = URL(string: content)
-        let fileName = url?.lastPathComponent ?? content
+        // Handle multiple files
+        if content.contains("\n") {
+            let files = content.components(separatedBy: "\n")
+            let count = files.count
+            let firstFile = URL(fileURLWithPath: files[0]).lastPathComponent
+            let firstFileTruncated = firstFile.count > 20 ? String(firstFile.prefix(20)) + "..." : firstFile
+            if count > 1 {
+                return "\(count) Files: \(firstFileTruncated)..."
+            }
+        }
+        
+        let url = URL(fileURLWithPath: content)
+        let fileName = url.lastPathComponent
         
         if content.hasSuffix("/") {
             return fileName.isEmpty ? "Folder" : fileName
-        }
-        
-        if let fileExtension = url?.pathExtension, !fileExtension.isEmpty {
-            return fileName
         }
         
         return fileName.isEmpty ? "File" : fileName
