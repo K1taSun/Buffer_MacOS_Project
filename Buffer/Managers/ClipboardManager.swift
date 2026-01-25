@@ -7,13 +7,7 @@ private enum Config {
     static let maxItems = 50
     static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
-    static let typeSortOrder: [ClipboardItemType: Int] = [
-        .text: 0,
-        .url: 1,
-        .file: 2,
-        .image: 3,
-        .richText: 4
-    ]
+
 }
 
 final class ClipboardManager: ObservableObject {
@@ -354,70 +348,12 @@ final class ClipboardManager: ObservableObject {
         lastChangeCount = NSPasteboard.general.changeCount
     }
     
-    private func sortItemsByFormat(_ items: inout [ClipboardItem]) {
-        items.sort { lhs, rhs in
-            let lhsKey = sortKey(for: lhs)
-            let rhsKey = sortKey(for: rhs)
-
-            if lhsKey.typeRank != rhsKey.typeRank {
-                return lhsKey.typeRank < rhsKey.typeRank
-            }
-
-            let formatComparison = lhsKey.formatKey.localizedCaseInsensitiveCompare(rhsKey.formatKey)
-            if formatComparison != .orderedSame {
-                return formatComparison == .orderedAscending
-            }
-
-            if lhs.timestamp != rhs.timestamp {
-                return lhs.timestamp > rhs.timestamp
-            }
-
-            return lhs.content.localizedCaseInsensitiveCompare(rhs.content) == .orderedAscending
-        }
-    }
-
-    private func sortKey(for item: ClipboardItem) -> (typeRank: Int, formatKey: String) {
-        let typeRank = Config.typeSortOrder[item.type] ?? Int.max
-        let formatKey = formatSortKey(for: item)
-        return (typeRank, formatKey)
-    }
-
-    private func formatSortKey(for item: ClipboardItem) -> String {
-        switch item.type {
-        case .file:
-            let rawContent = item.content
-            if let url = URL(string: rawContent) {
-                let ext = url.pathExtension
-                if !ext.isEmpty { return ext.lowercased() }
-                return url.lastPathComponent.lowercased()
-            }
-            let sanitized = rawContent.hasPrefix("file://")
-                ? String(rawContent.dropFirst("file://".count))
-                : rawContent
-            let fallbackURL = URL(fileURLWithPath: sanitized)
-            let ext = fallbackURL.pathExtension
-            if !ext.isEmpty { return ext.lowercased() }
-            let lastPath = fallbackURL.lastPathComponent
-            return lastPath.isEmpty ? "zzz" : lastPath.lowercased()
-        case .image:
-            if let data = item.data {
-                return ClipboardItemNameHelper.detectImageFormat(from: data).lowercased()
-            }
-            return "image"
-        case .url:
-            return URL(string: item.content)?.scheme?.lowercased() ?? "url"
-        case .text:
-            return "text"
-        case .richText:
-            return "richtext"
-        }
-    }
-
     private func normalizeItemOrdering() {
         let pinnedItems = items.filter { $0.isPinned }
         var unpinnedItems = items.filter { !$0.isPinned }
 
-        sortItemsByFormat(&unpinnedItems)
+        // Sort items by recency (newest first)
+        unpinnedItems.sort { $0.timestamp > $1.timestamp }
 
         if unpinnedItems.count > Config.maxItems {
             // Make sure to delete files for items that are dropping off the list!
