@@ -1,10 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @Environment(\.dismiss) var dismiss
+    @Binding var isPresented: Bool
     @StateObject private var shortcutManager = ShortcutManager.shared
-    @State private var isRecording = false
-    @State private var monitor: Any?
     
     var body: some View {
         VStack(spacing: 20) {
@@ -21,7 +19,7 @@ struct SettingsView: View {
                         toggleRecording()
                     }) {
                         HStack {
-                            if isRecording {
+                            if shortcutManager.isRecording {
                                 Image(systemName: "record.circle")
                                     .foregroundColor(.red)
                                 Text("Recording... Press keys")
@@ -36,7 +34,7 @@ struct SettingsView: View {
                         .cornerRadius(6)
                         .overlay(
                             RoundedRectangle(cornerRadius: 6)
-                                .stroke(isRecording ? Color.blue : Color.secondary.opacity(0.3), lineWidth: 1)
+                                .stroke(shortcutManager.isRecording ? Color.blue : Color.secondary.opacity(0.3), lineWidth: 1)
                         )
                     }
                     .buttonStyle(.plain)
@@ -57,43 +55,31 @@ struct SettingsView: View {
             
             Spacer()
             
-            Button("Done") {
-                stopRecording()
-                dismiss()
+            HStack {
+                Spacer()
+                Button("Done") {
+                    if shortcutManager.isRecording {
+                        shortcutManager.stopRecording()
+                    }
+                    isPresented = false
+                }
+                .keyboardShortcut(.defaultAction)
             }
         }
         .padding()
-        .frame(width: 300, height: 200)
+        .frame(width: 450, height: 600) // Match parent size for seamless overlay
+        .background(Color(NSColor.windowBackgroundColor))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Consume clicks to prevent window dismissal
+        }
     }
     
     private func toggleRecording() {
-        if isRecording {
-            stopRecording()
+        if shortcutManager.isRecording {
+            shortcutManager.stopRecording()
         } else {
-            startRecording()
-        }
-    }
-    
-    private func startRecording() {
-        isRecording = true
-        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            // Cancel on Escape
-            if event.keyCode == 53 {
-                stopRecording()
-                return nil
-            }
-            
-            shortcutManager.setShortcut(event: event)
-            stopRecording()
-            return nil 
-        }
-    }
-    
-    private func stopRecording() {
-        isRecording = false
-        if let monitor = monitor {
-            NSEvent.removeMonitor(monitor)
-            self.monitor = nil
+            shortcutManager.startRecording()
         }
     }
 }

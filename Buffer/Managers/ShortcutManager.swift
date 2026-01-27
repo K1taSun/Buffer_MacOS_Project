@@ -38,10 +38,40 @@ class ShortcutManager: ObservableObject {
         }
     }
     
+    @Published var isRecording = false
+    private var recordingMonitor: Any?
+    
     private let shortcutKey = "savedGlobalShortcut"
     
     private init() {
         loadShortcut()
+    }
+    
+    func startRecording() {
+        guard !isRecording else { return }
+        isRecording = true
+        
+        recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self else { return event }
+            
+            // Cancel on Escape
+            if event.keyCode == 53 {
+                self.stopRecording()
+                return nil
+            }
+            
+            self.setShortcut(event: event)
+            self.stopRecording()
+            return nil
+        }
+    }
+    
+    func stopRecording() {
+        isRecording = false
+        if let monitor = recordingMonitor {
+            NSEvent.removeMonitor(monitor)
+            recordingMonitor = nil
+        }
     }
     
     func setShortcut(event: NSEvent) {
@@ -56,6 +86,9 @@ class ShortcutManager: ObservableObject {
     }
     
     func matches(_ event: NSEvent) -> Bool {
+        // If we are recording, nothing should match as a hotkey to trigger actions
+        if isRecording { return false }
+
         // Sprawdź najpierw domyślny skrót Cmd+Shift+V (keyCode 9 = 'v')
         let isDefaultShortcut = event.modifierFlags.contains([.command, .shift]) && 
                                 event.keyCode == 9

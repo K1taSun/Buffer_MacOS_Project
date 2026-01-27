@@ -41,49 +41,54 @@ struct ClipboardView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            headerView
-            filterView
-            contentView
-            footerView
-        }
-        .frame(width: 450, height: 600)
-        .opacity(isAppearing ? 1 : 0)
-        .scaleEffect(isAppearing ? 1 : 0.95)
-        .onAppear(perform: setupAppearance)
-        .sheet(item: $previewedImage) { preview in
-            ImagePreviewSheet(image: preview.image)
-        }
-        .sheet(isPresented: $showSettings) {
-            SettingsView()
-        }
-        .overlay(
-            Group {
-                if showCopyFeedback {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Text("Copied!")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.green)
-                                )
-                                .shadow(radius: 4)
-                            Spacer()
-                        }
-                        .padding(.bottom, 20)
-                    }
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(1000)
-                }
+        ZStack {
+            VStack(spacing: 0) {
+                headerView
+                filterView
+                contentView
+                footerView
             }
-        )
+            .frame(width: 450, height: 600)
+            .opacity(isAppearing ? 1 : 0)
+            .scaleEffect(isAppearing ? 1 : 0.95)
+            .onAppear(perform: setupAppearance)
+            .sheet(item: $previewedImage) { preview in
+                ImagePreviewSheet(image: preview.image)
+            }
+            .overlay(
+                Group {
+                    if showCopyFeedback {
+                        VStack {
+                            Spacer()
+                            HStack {
+                                Spacer()
+                                Text("Copied!")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.green)
+                                    )
+                                    .shadow(radius: 4)
+                                Spacer()
+                            }
+                            .padding(.bottom, 20)
+                        }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(1000)
+                    }
+                }
+            )
+            
+            if showSettings {
+                SettingsView(isPresented: $showSettings)
+                    .transition(.move(edge: .bottom))
+                    .zIndex(2000)
+            }
+        }
     }
     
     private var headerView: some View {
