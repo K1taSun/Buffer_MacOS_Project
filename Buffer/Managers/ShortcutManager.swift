@@ -1,7 +1,8 @@
 import Foundation
 import AppKit
 import SwiftUI
-
+import SwiftUI
+import os
 struct SavedShortcut: Codable, Equatable {
     let keyCode: Int
     let modifiers: UInt
@@ -31,6 +32,9 @@ struct SavedShortcut: Codable, Equatable {
 
 class ShortcutManager: ObservableObject {
     static let shared = ShortcutManager()
+    
+    // Logger
+    private let logger = Logger(subsystem: "com.buffer.macos", category: "Shortcuts")
     
     @Published var shortcut: SavedShortcut? {
         didSet {
@@ -76,7 +80,7 @@ class ShortcutManager: ObservableObject {
     
     func setShortcut(event: NSEvent) {
         
-        guard event.keyCode < 0xF800 else { return } 
+
         
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
         let key = Int(event.keyCode)
@@ -89,19 +93,25 @@ class ShortcutManager: ObservableObject {
         // If we are recording, nothing should match as a hotkey to trigger actions
         if isRecording { return false }
 
-        // Sprawdź najpierw domyślny skrót Cmd+Shift+V (keyCode 9 = 'v')
-        let isDefaultShortcut = event.modifierFlags.contains([.command, .shift]) && 
-                                event.keyCode == 9
-        
+        // Custom shortcut (priority)
         if let shortcut = shortcut {
             let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let shortcutModifiers = shortcut.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            let matchesCustom = event.keyCode == shortcut.keyCode && eventModifiers == shortcutModifiers
-            return matchesCustom || isDefaultShortcut
+            
+            let keyMatch = event.keyCode == shortcut.keyCode
+            let modMatch = eventModifiers == shortcutModifiers
+            
+            logger.debug("Checking custom: Event(\(event.keyCode), \(eventModifiers.rawValue)) vs Shortcut(\(shortcut.keyCode), \(shortcutModifiers.rawValue)) -> Key:\(keyMatch) Mod:\(modMatch)")
+            
+            return keyMatch && modMatch
         }
         
-        // Default fallback: Cmd + Shift + V
-        return isDefaultShortcut
+        // Default fallback: Cmd + Shift + V (only if no custom shortcut is set)
+        let isDefault = event.modifierFlags.contains([.command, .shift]) && event.keyCode == 9
+        if isDefault {
+             logger.debug("Matched default shortcut Cmd+Shift+V")
+        }
+        return isDefault
     }
     
     private func saveShortcut() {

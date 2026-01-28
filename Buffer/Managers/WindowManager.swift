@@ -23,7 +23,7 @@ class WindowManager: NSObject, ObservableObject {
         } else {
             guard let window = window else { return }
             
-            // Aktywacja aplikacji przed pokazaniem okna
+            // Activate app before showing window
             NSApp.activate(ignoringOtherApps: true)
             
             window.alphaValue = 0
@@ -51,7 +51,7 @@ class WindowManager: NSObject, ObservableObject {
     }
     
     private func createWindow() {
-        // Aktywacja aplikacji przed utworzeniem okna
+        // Activate app before creating window
         NSApp.activate(ignoringOtherApps: true)
         
         let window = NSWindow(
@@ -110,10 +110,7 @@ class WindowManager: NSObject, ObservableObject {
         window.setFrame(NSRect(x: finalX, y: finalY, width: windowFrame.width, height: windowFrame.height), display: true)
     }
     
-    func repositionWindow() {
-        guard window != nil else { return }
-        positionWindow()
-    }
+
     
     func closeWindow() {
         guard let window = window else { return }
@@ -135,6 +132,6 @@ extension WindowManager: NSWindowDelegate {
     }
     
     func windowDidResignKey(_ notification: Notification) {
-        // hideWindow()
+
     }
 } 

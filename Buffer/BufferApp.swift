@@ -15,11 +15,15 @@ struct BufferApp: App {
     }
 }
 
+import os
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private let logger = Logger(subsystem: "com.buffer.macos", category: "Events")
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        logger.info("Application did finish launching")
         // Najpierw ustaw politykę aktywacji
         NSApp.setActivationPolicy(.accessory)
         
@@ -41,12 +45,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let accessEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
         
         if !accessEnabled {
-            print("Accessibility permissions are required for global keyboard shortcuts")
+            logger.error("Accessibility permissions NOT granted")
+            
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Accessibility Permissions Required"
+                alert.informativeText = "Buffer needs accessibility permissions to detect global keyboard shortcuts.\n\nPlease grant access in System Settings > Privacy & Security > Accessibility."
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: "Open Settings")
+                alert.addButton(withTitle: "Cancel")
+                
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                    NSWorkspace.shared.open(url)
+                }
+            }
+        } else {
+            logger.info("Accessibility permissions granted")
         }
     }
     
     private func setupGlobalMonitor() {
+        logger.info("Setting up global monitor")
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.logger.debug("Global event received: \(event.keyCode)")
             _ = self?.handleKeyEvent(event)
         }
     }
@@ -62,9 +85,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func handleKeyEvent(_ event: NSEvent) -> Bool {
         if ShortcutManager.shared.matches(event) {
+            logger.notice("Shortcut matched! Toggling window.")
             // Bezpośrednie wywołanie na głównym wątku - już jesteśmy w monitorze
             WindowManager.shared.toggleWindow()
             return true
+        } else {
+            logger.debug("No match for event")
         }
         
         return false

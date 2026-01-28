@@ -42,9 +42,18 @@ fastlane/test_output/
 TestResults/
 TestResults.xcresult/
 
-# User settings
-.idea/
-.vscode/
-
 # macOS
-.DS_Store 
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs
+build_log.txt
+*.log
+
+# Editor
+*.swp
+*~
+.idea/
+.vscode/ 

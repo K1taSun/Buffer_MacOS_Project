@@ -121,8 +121,11 @@ extension ClipboardItem {
             }
             return NSItemProvider()
         case .file:
-            if let url = URL(string: content) {
-                return NSItemProvider(object: url as NSURL)
+            // Handle multiple files (stored as newline separated paths)
+            let paths = content.components(separatedBy: "\n")
+            if let firstPath = paths.first, !firstPath.isEmpty {
+                 let fileURL = URL(fileURLWithPath: firstPath)
+                 return NSItemProvider(object: fileURL as NSURL)
             }
             return NSItemProvider(object: content as NSString)
         case .richText:
