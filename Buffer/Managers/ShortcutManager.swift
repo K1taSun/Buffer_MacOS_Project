@@ -39,6 +39,7 @@ class ShortcutManager: ObservableObject {
     @Published var shortcut: SavedShortcut? {
         didSet {
             saveShortcut()
+            updateHotKey()
         }
     }
     
@@ -49,11 +50,16 @@ class ShortcutManager: ObservableObject {
     
     private init() {
         loadShortcut()
+        // Ensure hotkey is registered on launch
+        updateHotKey()
     }
     
     func startRecording() {
         guard !isRecording else { return }
         isRecording = true
+        
+        // Disable hotkey while recording
+        HotKeyManager.shared.unregisterHotkey()
         
         recordingMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self = self else { return event }
@@ -76,12 +82,12 @@ class ShortcutManager: ObservableObject {
             NSEvent.removeMonitor(monitor)
             recordingMonitor = nil
         }
+        
+        // Re-enable hotkey
+        updateHotKey()
     }
     
     func setShortcut(event: NSEvent) {
-        
-
-        
         let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue
         let key = Int(event.keyCode)
         let chars = event.charactersIgnoringModifiers
@@ -89,29 +95,23 @@ class ShortcutManager: ObservableObject {
         self.shortcut = SavedShortcut(keyCode: key, modifiers: modifiers, characters: chars)
     }
     
+    // Legacy matches method removed or kept for local fallback?
+    // Carbon handles global, but local NSEvent might still be relevant if we wanted to
+    // keep consistency. However, Carbon works locally too.
+    // We can keep it if other parts of the app use it, but HotKeyManager handles the activation.
     func matches(_ event: NSEvent) -> Bool {
-        // If we are recording, nothing should match as a hotkey to trigger actions
-        if isRecording { return false }
-
-        // Custom shortcut (priority)
+        // ... (implementation kept if needed, but HotKeyManager is primary now)
+        return false 
+    }
+    
+    private func updateHotKey() {
         if let shortcut = shortcut {
-            let eventModifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            let shortcutModifiers = shortcut.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            
-            let keyMatch = event.keyCode == shortcut.keyCode
-            let modMatch = eventModifiers == shortcutModifiers
-            
-            logger.debug("Checking custom: Event(\(event.keyCode), \(eventModifiers.rawValue)) vs Shortcut(\(shortcut.keyCode), \(shortcutModifiers.rawValue)) -> Key:\(keyMatch) Mod:\(modMatch)")
-            
-            return keyMatch && modMatch
+            logger.info("Registering custom shortcut: \(shortcut.keyCode)")
+            HotKeyManager.shared.registerHotkey(keyCode: shortcut.keyCode, modifiers: Int(shortcut.modifiers))
+        } else {
+            logger.info("Registering default shortcut")
+            HotKeyManager.shared.registerDefault()
         }
-        
-        // Default fallback: Cmd + Shift + V (only if no custom shortcut is set)
-        let isDefault = event.modifierFlags.contains([.command, .shift]) && event.keyCode == 9
-        if isDefault {
-             logger.debug("Matched default shortcut Cmd+Shift+V")
-        }
-        return isDefault
     }
     
     private func saveShortcut() {

@@ -18,7 +18,6 @@ struct BufferApp: App {
 import os
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-    private var globalMonitor: Any?
     private var localMonitor: Any?
     private let logger = Logger(subsystem: "com.buffer.macos", category: "Events")
     
@@ -27,14 +26,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Najpierw ustaw politykę aktywacji
         NSApp.setActivationPolicy(.accessory)
         
-        // Następnie skonfiguruj monitory skrótów
-        setupGlobalMonitor()
+        // Inicjalizacja managera skrótów (Carbon) - to zarejestruje domyślny skrót lub zapisany
+        _ = ShortcutManager.shared
+        
+        // Następnie skonfiguruj lokalny monitor (opcjonalnie, do innych celów, np. ESC w oknie)
         setupLocalMonitor()
         
         // Na końcu poproś o uprawnienia i aktywuj aplikację
+        // Uprawnienia Accessibility nadal mogą być przydatne do wklejania, ale nie są krytyczne dla samego skrótu otwieranai okna
         requestAccessibilityPermissions()
         
-        // Aktywacja aplikacji natychmiast po starcie - gotowa do odbierania skrótów
+        // Aktywacja aplikacji natychmiast po starcie
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApp.activate(ignoringOtherApps: true)
         }
@@ -45,74 +47,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let accessEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
         
         if !accessEnabled {
-            logger.error("Accessibility permissions NOT granted")
-            
-            DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Accessibility Permissions Required"
-                alert.informativeText = "Buffer needs accessibility permissions to detect global keyboard shortcuts.\n\nPlease grant access in System Settings > Privacy & Security > Accessibility."
-                alert.alertStyle = .warning
-                alert.addButton(withTitle: "Open Settings")
-                alert.addButton(withTitle: "Cancel")
-                
-                let response = alert.runModal()
-                if response == .alertFirstButtonReturn {
-                    let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
-                    NSWorkspace.shared.open(url)
-                }
-            }
+            logger.warning("Accessibility permissions NOT granted - specific features like pasting might be limited, but global shortcut will work.")
         } else {
             logger.info("Accessibility permissions granted")
         }
     }
     
-    private func setupGlobalMonitor() {
-        logger.info("Setting up global monitor")
-        globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            self?.logger.debug("Global event received: \(event.keyCode)")
-            _ = self?.handleKeyEvent(event)
-        }
-    }
-    
     private func setupLocalMonitor() {
-        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if self?.handleKeyEvent(event) == true {
-                return nil
-            }
+        localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            // Tutaj możemy obsłużyć specyficzne klawisze gdy aplikacja jest aktywna
+            // Na przykład wciśnięcie ESC żeby zamknąć okno, jeśli nie jest to obsłużone w SwiftUI
+            // Ale na razie zostawmy standardowe zachowanie
             return event
         }
     }
     
-    private func handleKeyEvent(_ event: NSEvent) -> Bool {
-        if ShortcutManager.shared.matches(event) {
-            logger.notice("Shortcut matched! Toggling window.")
-            // Bezpośrednie wywołanie na głównym wątku - już jesteśmy w monitorze
-            WindowManager.shared.toggleWindow()
-            return true
-        } else {
-            logger.debug("No match for event")
-        }
-        
-        return false
-    }
-    
     func applicationWillTerminate(_ notification: Notification) {
-        cleanupMonitors()
-    }
-    
-    private func cleanupMonitors() {
-        if let globalMonitor = globalMonitor {
-            NSEvent.removeMonitor(globalMonitor)
-            self.globalMonitor = nil
-        }
-        
         if let localMonitor = localMonitor {
             NSEvent.removeMonitor(localMonitor)
             self.localMonitor = nil
         }
-    }
-    
-    deinit {
-        cleanupMonitors()
     }
 }

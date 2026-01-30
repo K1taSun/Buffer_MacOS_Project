@@ -107,31 +107,62 @@ enum ClipboardItemType: String, Codable {
 
 extension ClipboardItem {
     var itemProvider: NSItemProvider {
+        let provider = NSItemProvider()
+        
         switch type {
         case .text:
-            return NSItemProvider(object: content as NSString)
+            provider.registerObject(content as NSString, visibility: .all)
+            
         case .url:
             if let url = URL(string: content) {
-                return NSItemProvider(object: url as NSURL)
+                provider.registerObject(url as NSURL, visibility: .all)
             }
-            return NSItemProvider(object: content as NSString)
+            // Fallback for text consumers
+            provider.registerObject(content as NSString, visibility: .all)
+            
         case .image:
             if let data = data, let image = NSImage(data: data) {
-                return NSItemProvider(object: image)
+                provider.registerObject(image, visibility: .all)
             }
-            return NSItemProvider()
+            
         case .file:
-            // Handle multiple files (stored as newline separated paths)
-            let paths = content.components(separatedBy: "\n")
-            if let firstPath = paths.first, !firstPath.isEmpty {
-                 let fileURL = URL(fileURLWithPath: firstPath)
-                 return NSItemProvider(object: fileURL as NSURL)
+            // Handle multiple files
+            let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
+            
+            if !paths.isEmpty {
+                // 1. Modern file URL support (for the first file - standard consumers)
+                let fileURL = URL(fileURLWithPath: paths[0])
+                provider.registerObject(fileURL as NSURL, visibility: .all)
+                
+                // 2. Legacy support for multiple files (Finder expects this for multi-file drops)
+                // We use NSFilenamesPboardType (which maps to "NSFilenamesPboardType")
+                provider.registerDataRepresentation(forTypeIdentifier: "NSFilenamesPboardType", visibility: .all) { completion in
+                    do {
+                        // Takes an array of strings
+                        let data = try PropertyListSerialization.data(fromPropertyList: paths, format: .xml, options: 0)
+                        completion(data, nil)
+                    } catch {
+                        completion(nil, error)
+                    }
+                    return nil
+                }
+            } else {
+                provider.registerObject(content as NSString, visibility: .all)
             }
-            return NSItemProvider(object: content as NSString)
+            
         case .richText:
-            // For rich text, we provide it as plain text for compatibility
-            // or we could implement proper RTF support if needed
-            return NSItemProvider(object: content as NSString)
+            // 1. Register RTF data if available (preserves formatting)
+            if let data = data {
+                provider.registerDataRepresentation(forTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue, visibility: .all) { completion in
+                    completion(data, nil)
+                    return nil
+                }
+            }
+            
+            // 2. Fallback to plain text
+            provider.registerObject(content as NSString, visibility: .all)
         }
+        
+        return provider
     }
 }

@@ -8,6 +8,7 @@ struct ClipboardView: View {
     @State private var previewedImage: ImagePreviewData? = nil
     @State private var showCopyFeedback = false
     @State private var showSettings = false
+    var allowDrag: Bool = true
     
     private var filteredItems: [ClipboardItem] {
         let items = clipboardManager.items
@@ -152,27 +153,33 @@ struct ClipboardView: View {
                 ScrollView {
                     LazyVStack(spacing: 4) {
                         ForEach(filteredItems) { item in
-                            ClipboardItemView(item: item, onImageTap: { nsImage in
+                            let itemView = ClipboardItemView(item: item, onImageTap: { nsImage in
                                 previewedImage = ImagePreviewData(image: nsImage)
                             })
-                                .contextMenu {
-                                    Button("Copy") { 
-                                        clipboardManager.copyItem(item)
-                                        triggerCopyFeedback()
-                                    }
-                                    Button(item.isPinned ? "Unpin" : "Pin") { 
-                                        clipboardManager.togglePin(item) 
-                                    }
-                                    Divider()
-                                    Button("Delete") { clipboardManager.removeItem(item) }
-                                }
-                                .onTapGesture { 
+                            .contextMenu {
+                                Button("Copy") { 
                                     clipboardManager.copyItem(item)
                                     triggerCopyFeedback()
                                 }
-                                .onDrag {
+                                Button(item.isPinned ? "Unpin" : "Pin") { 
+                                    clipboardManager.togglePin(item) 
+                                }
+                                Divider()
+                                Button("Delete") { clipboardManager.removeItem(item) }
+                            }
+                            .onTapGesture { 
+                                clipboardManager.copyItem(item)
+                                triggerCopyFeedback()
+                            }
+                            
+                            // Conditionally apply drag
+                            if allowDrag {
+                                itemView.onDrag {
                                     item.itemProvider
                                 }
+                            } else {
+                                itemView
+                            }
                         }
                     }
                     .padding(.vertical, 8)
@@ -303,15 +310,15 @@ struct FilterButton: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 14)
-                        .fill(isSelected ? Color.blue : Color.clear)
+                        .fill(isSelected ? Color.blue : Color.white.opacity(0.001))
                 )
                 .foregroundColor(isSelected ? .white : .primary)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .stroke(isSelected ? Color.clear : Color.secondary.opacity(0.3), lineWidth: 1)
                 )
+                .contentShape(Rectangle())
         }
-        .contentShape(Rectangle())
         .buttonStyle(.plain)
     }
 }
