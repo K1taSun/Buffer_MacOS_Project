@@ -4,7 +4,7 @@ import Combine
 import CryptoKit
 
 private enum Config {
-    static let maxItems = 50
+    static let maxItems = 512
     static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
 
