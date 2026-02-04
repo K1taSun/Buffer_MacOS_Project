@@ -166,3 +166,67 @@ extension ClipboardItem {
         return provider
     }
 }
+
+// MARK: - Date Grouping
+
+enum DateSection: Int, CaseIterable {
+    case today
+    case yesterday
+    case twoDaysAgo
+    case lastMonth
+    case lastYear
+    
+    var title: String {
+        switch self {
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .twoDaysAgo: return "2 Days Ago"
+        case .lastMonth: return "Last Month"
+        case .lastYear: return "Last Year"
+        }
+    }
+    
+    var titlePolish: String {
+        switch self {
+        case .today: return "Dzisiaj"
+        case .yesterday: return "Wczoraj"
+        case .twoDaysAgo: return "2 dni temu"
+        case .lastMonth: return "Ostatni miesiąc"
+        case .lastYear: return "Ostatni rok"
+        }
+    }
+}
+
+extension ClipboardItem {
+    /// Determines which date section this item belongs to based on its timestamp
+    var dateSection: DateSection {
+        let calendar = Calendar.current
+        let now = Date()
+        let itemDate = timestamp
+        
+        // Check if today
+        if calendar.isDateInToday(itemDate) {
+            return .today
+        }
+        
+        // Check if yesterday
+        if calendar.isDateInYesterday(itemDate) {
+            return .yesterday
+        }
+        
+        // Check if 2 days ago
+        if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now)),
+           calendar.isDate(itemDate, inSameDayAs: twoDaysAgo) {
+            return .twoDaysAgo
+        }
+        
+        // Check if within last 30 days (last month)
+        if let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now),
+           itemDate > thirtyDaysAgo {
+            return .lastMonth
+        }
+        
+        // Otherwise, it's from last year
+        return .lastYear
+    }
+}

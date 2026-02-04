@@ -13,7 +13,7 @@ struct ClipboardView: View {
     private var filteredItems: [ClipboardItem] {
         let items = clipboardManager.items
         
-        // Apply search filter - tylko gdy potrzebne
+        // Apply search filter
         let searchFiltered: [ClipboardItem]
         if searchText.isEmpty {
             searchFiltered = items
@@ -39,6 +39,34 @@ struct ClipboardView: View {
         case .pinned:
             return searchFiltered.filter { $0.isPinned }
         }
+    }
+    
+    // Group items by date section, with pinned items at the top
+    private var groupedItems: [(DateSection?, [ClipboardItem])] {
+        let filtered = filteredItems
+        
+        // Separate pinned and unpinned items
+        let pinnedItems = filtered.filter { $0.isPinned }
+        let unpinnedItems = filtered.filter { !$0.isPinned }
+        
+        var sections: [(DateSection?, [ClipboardItem])] = []
+        
+        // Add pinned section if there are pinned items
+        if !pinnedItems.isEmpty {
+            sections.append((nil, pinnedItems))
+        }
+        
+        // Group unpinned items by date section
+        let groupedDict = Dictionary(grouping: unpinnedItems) { $0.dateSection }
+        
+        // Add sections in order
+        for section in DateSection.allCases {
+            if let items = groupedDict[section], !items.isEmpty {
+                sections.append((section, items))
+            }
+        }
+        
+        return sections
     }
     
     var body: some View {
@@ -151,34 +179,65 @@ struct ClipboardView: View {
                 emptyStateView
             } else {
                 ScrollView {
-                    LazyVStack(spacing: 4) {
-                        ForEach(filteredItems) { item in
-                            let itemView = ClipboardItemView(item: item, onImageTap: { nsImage in
-                                previewedImage = ImagePreviewData(image: nsImage)
-                            })
-                            .contextMenu {
-                                Button("Copy") { 
-                                    clipboardManager.copyItem(item)
-                                    triggerCopyFeedback()
+                    LazyVStack(spacing: 8) {
+                        ForEach(Array(groupedItems.enumerated()), id: \.offset) { index, section in
+                            VStack(alignment: .leading, spacing: 4) {
+                                // Section header
+                                if let dateSection = section.0 {
+                                    Text(dateSection.title)
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .foregroundColor(.secondary)
+                                        .textCase(.uppercase)
+                                        .padding(.horizontal, 16)
+                                        .padding(.top, index == 0 ? 8 : 12)
+                                        .padding(.bottom, 4)
+                                } else {
+                                    // Pinned section header
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "pin.fill")
+                                            .font(.caption2)
+                                        Text("Pinned")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                    }
+                                    .foregroundColor(.blue)
+                                    .textCase(.uppercase)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 8)
+                                    .padding(.bottom, 4)
                                 }
-                                Button(item.isPinned ? "Unpin" : "Pin") { 
-                                    clipboardManager.togglePin(item) 
+                                
+                                // Items in section
+                                ForEach(section.1) { item in
+                                    let itemView = ClipboardItemView(item: item, onImageTap: { nsImage in
+                                        previewedImage = ImagePreviewData(image: nsImage)
+                                    })
+                                    .contextMenu {
+                                        Button("Copy") { 
+                                            clipboardManager.copyItem(item)
+                                            triggerCopyFeedback()
+                                        }
+                                        Button(item.isPinned ? "Unpin" : "Pin") { 
+                                            clipboardManager.togglePin(item) 
+                                        }
+                                        Divider()
+                                        Button("Delete") { clipboardManager.removeItem(item) }
+                                    }
+                                    .onTapGesture { 
+                                        clipboardManager.copyItem(item)
+                                        triggerCopyFeedback()
+                                    }
+                                    
+                                    // Conditionally apply drag
+                                    if allowDrag {
+                                        itemView.onDrag {
+                                            item.itemProvider
+                                        }
+                                    } else {
+                                        itemView
+                                    }
                                 }
-                                Divider()
-                                Button("Delete") { clipboardManager.removeItem(item) }
-                            }
-                            .onTapGesture { 
-                                clipboardManager.copyItem(item)
-                                triggerCopyFeedback()
-                            }
-                            
-                            // Conditionally apply drag
-                            if allowDrag {
-                                itemView.onDrag {
-                                    item.itemProvider
-                                }
-                            } else {
-                                itemView
                             }
                         }
                     }
