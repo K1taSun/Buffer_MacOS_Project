@@ -166,3 +166,90 @@ extension ClipboardItem {
         return provider
     }
 }
+
+// MARK: - Date Grouping
+
+enum DateSection: Int, CaseIterable {
+// Old code (for reference):
+//     case today
+//     case yesterday
+//     case twoDaysAgo
+//     case past
+//     
+//     var title: String {
+//         switch self {
+//         case .today: return "Today"
+//         case .yesterday: return "Yesterday"
+//         case .twoDaysAgo: return "2 Days Ago"
+//         case .past: return "Past"
+//         }
+//     }
+//     
+//     var titlePolish: String {
+//         switch self {
+//         case .today: return "Dzisiaj"
+//         case .yesterday: return "Wczoraj"
+//         case .twoDaysAgo: return "2 dni temu"
+//         case .past: return "Przeszłe"
+//         }
+//     }
+
+    case today
+    case yesterday
+    case past
+    
+    var title: String {
+        switch self {
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .past: return "Past"
+        }
+    }
+    
+    var titlePolish: String {
+        switch self {
+        case .today: return "Dzisiaj"
+        case .yesterday: return "Wczoraj"
+        case .past: return "Przeszłe"
+        }
+    }
+}
+
+extension ClipboardItem {
+    /// Determines which date section this item belongs to based on its timestamp
+    var dateSection: DateSection {
+        let calendar = Calendar.current
+        let now = Date()
+        let itemDate = timestamp
+        
+        // Check if today
+        if calendar.isDateInToday(itemDate) {
+            return .today
+        }
+        
+        // Check if yesterday
+        if calendar.isDateInYesterday(itemDate) {
+            return .yesterday
+        }
+        
+// Old code (for reference):
+//         // Check if 2 days ago
+//         if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now)),
+//            calendar.isDate(itemDate, inSameDayAs: twoDaysAgo) {
+//             return .twoDaysAgo
+//         }
+        
+// Old code (for reference):
+//         // Check if within last 30 days (last month)
+//         if let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now),
+//            itemDate > thirtyDaysAgo {
+//             return .lastMonth
+//         }
+//         
+//         // Otherwise, it's from last year
+//         return .lastYear
+
+        // Wszystko inne zrzucamy do wspólnej przegródki reprezentującej przeszłość
+        return .past
+    }
+}

@@ -4,7 +4,7 @@ import Combine
 import CryptoKit
 
 private enum Config {
-    static let maxItems = 50
+    static let maxItems = 1024
     static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
 
@@ -20,6 +20,10 @@ final class ClipboardManager: ObservableObject {
     private var lastImageHash: String?
     private var isProcessing = false
     private var saveWorkItem: DispatchWorkItem?
+    
+    // Czas ostatniego odświeżenia UI - żebyśmy wiedzieli, kiedy wymusić nowy podział na dni/godziny.
+    // Przydatne, żeby widok przebudował np. sekcję "Dzisiaj" na "Wczoraj" bez dodawania nowego pliku.
+    private var lastUIUpdateDate: Date = Date()
     
     private let fileManager = FileManager.default
     
@@ -74,10 +78,22 @@ final class ClipboardManager: ObservableObject {
     // MARK: - Monitoring
     
     private func startMonitoring() {
+        // Poprzednia implementacja (dla odniesienia - same sprawdzanie schowka):
+        // stopMonitoring()
+        // 
+        // timer = Timer.scheduledTimer(withTimeInterval: Config.checkInterval, repeats: true) { [weak self] _ in
+        //     self?.checkClipboard()
+        // }
+        // 
+        // if let timer = timer {
+        //     RunLoop.current.add(timer, forMode: .common)
+        // }
+        
         stopMonitoring()
         
         timer = Timer.scheduledTimer(withTimeInterval: Config.checkInterval, repeats: true) { [weak self] _ in
             self?.checkClipboard()
+            self?.triggerUIRefreshIfNeeded()
         }
         
         if let timer = timer {
@@ -106,6 +122,28 @@ final class ClipboardManager: ObservableObject {
             DispatchQueue.main.async {
                 self?.isProcessing = false
             }
+        }
+    }
+    
+    // Wymusza odświeżenie SwiftUI u użytkownika w widokach, gdy zmieni się dzień lub upłynie godzina. 
+    // Dzięki temu elementy prawidłowo "przeskakują" do sekcji takich jak "Wczoraj",
+    // bez potrzeby "szturchania" schowka nowym plikiem.
+    private func triggerUIRefreshIfNeeded() {
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // Szybki check: omijamy przebudowę UI dopóki nie zmieni się konkretna godzina lub nie przeskoczy dzień.
+        let isNewDay = !calendar.isDate(now, inSameDayAs: lastUIUpdateDate)
+        let hasHourPassed = calendar.component(.hour, from: now) != calendar.component(.hour, from: lastUIUpdateDate)
+        
+        let needsRefresh = isNewDay || hasHourPassed
+        guard needsRefresh else { return }
+        
+        lastUIUpdateDate = now
+        
+        performOnMain { [weak self] in
+            // Wysyłamy cichy sygnał widokom, że obiekty (groupedItems) mogą wymagać przegrupowania.
+            self?.objectWillChange.send()
         }
     }
     
