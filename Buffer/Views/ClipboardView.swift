@@ -483,7 +483,13 @@ struct ClipboardItemView: View {
                 
                 Spacer()
                 
-                Text(item.timestamp, style: .time)
+// Old code (for reference):
+//                 Text(item.timestamp, style: .time)
+//                     .font(.caption)
+//                     .foregroundColor(.secondary)
+
+                // Jeśli plik wpadł do dawnej historii, modyfikujemy tekst żeby pokazywał mu również konkretną datę.
+                Text(getHumanReadableDate(for: item))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -523,6 +529,24 @@ struct ClipboardItemView: View {
                 }
             }
         }
+    }
+    
+    // Zwracamy bardziej szczegółową datę dla starych plików z przeszłości, 
+    // żebyś wiedział dokładnie kiedy element został skopiowany.
+    private func getHumanReadableDate(for item: ClipboardItem) -> String {
+        let formatter = DateFormatter()
+        
+        if item.dateSection == .past {
+            // Dla starszych itemów wyświetlamy pełniejszą formę: data + godzina
+            formatter.dateStyle = .short
+            formatter.timeStyle = .short
+        } else {
+            // "Dzisiaj" i "Wczoraj" mówią same za siebie - oszczędzamy miejsce i zostawiamy im czystą godzinę.
+            formatter.dateStyle = .none
+            formatter.timeStyle = .short
+        }
+        
+        return formatter.string(from: item.timestamp)
     }
 }
 
