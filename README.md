@@ -68,7 +68,7 @@ Buffer is a native macOS application that enhances your productivity by maintain
 
 | Action | Method |
 |--------|--------|
-| **Open Window** | Press `⌘`` or `⌘⇧V` |
+| **Open Window** | Press `⌘⇧V` |
 | **Copy / Delete** | Press `Return` / `Delete` |
 | **Close** | Press `Esc` |
 
