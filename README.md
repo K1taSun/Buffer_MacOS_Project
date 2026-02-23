@@ -31,7 +31,7 @@ Buffer is a native macOS application that enhances your productivity by maintain
 - **🔍 Advanced Search & Filtering:** Quick filters (Text, Images, Files, URLs, Pinned).
 - **📌 Smart Pinning:** Keep important items at the top.
 - **🎯 Intelligent Sorting:** Format-aware grouping and chronological ordering.
-- **⌨️ Keyboard Navigation:** Global hotkeys (`⌘`` or `⌘⇧V`).
+- **⌨️ Keyboard Navigation:** Global hotkeys (`⌘⇧V`).
 - **🖱️ Drag & Drop:** Drag items directly from history to other apps.
 
 ---
