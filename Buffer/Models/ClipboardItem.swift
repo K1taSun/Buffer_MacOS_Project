@@ -198,19 +198,11 @@ enum DateSection: Int, CaseIterable {
     case yesterday
     case past
     
-    var title: String {
+    var localizedKey: String {
         switch self {
-        case .today: return "Today"
-        case .yesterday: return "Yesterday"
-        case .past: return "Past"
-        }
-    }
-    
-    var titlePolish: String {
-        switch self {
-        case .today: return "Dzisiaj"
-        case .yesterday: return "Wczoraj"
-        case .past: return "Przeszłe"
+        case .today: return "date.today"
+        case .yesterday: return "date.yesterday"
+        case .past: return "date.past"
         }
     }
 }

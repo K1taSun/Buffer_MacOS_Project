@@ -3,14 +3,35 @@ import SwiftUI
 struct SettingsView: View {
     @Binding var isPresented: Bool
     @StateObject private var shortcutManager = ShortcutManager.shared
+    @EnvironmentObject private var languageManager: LanguageManager
     
     var body: some View {
         VStack(spacing: 20) {
-            Text("Settings")
+            Text(languageManager.localized("settings.title"))
                 .font(.headline)
             
             VStack(alignment: .leading, spacing: 10) {
-                Text("Global Shortcut")
+                // Sekcja Wyboru Języka
+                HStack {
+                    Text(languageManager.localized("settings.language"))
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Picker("", selection: $languageManager.currentLanguage) {
+                        ForEach(AppLanguage.allCases) { language in
+                            Text(language.displayName).tag(language)
+                        }
+                    }
+                    .frame(width: 120)
+                    .pickerStyle(MenuPickerStyle())
+                }
+                
+                Divider().padding(.vertical, 4)
+                
+                // Sekcja Skrótów Klawiszowych
+                Text(languageManager.localized("settings.globalShortcut"))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -22,10 +43,10 @@ struct SettingsView: View {
                             if shortcutManager.isRecording {
                                 Image(systemName: "record.circle")
                                     .foregroundColor(.red)
-                                Text("Recording... Press keys")
+                                Text(languageManager.localized("settings.recording"))
                             } else {
                                 Image(systemName: "keyboard")
-                                Text(shortcutManager.shortcut?.displayString ?? "⌘⇧V (Default)")
+                                Text(shortcutManager.shortcut?.displayString ?? languageManager.localized("settings.defaultShortcut"))
                             }
                         }
                         .frame(minWidth: 150)
@@ -57,7 +78,7 @@ struct SettingsView: View {
             
             HStack {
                 Spacer()
-                Button("Done") {
+                Button(languageManager.localized("settings.done")) {
                     if shortcutManager.isRecording {
                         shortcutManager.stopRecording()
                     }

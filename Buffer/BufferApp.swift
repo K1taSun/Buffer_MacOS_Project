@@ -4,12 +4,14 @@ import AppKit
 @main
 struct BufferApp: App {
     @StateObject private var clipboardManager = ClipboardManager.shared
+    @StateObject private var languageManager = LanguageManager.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     
     var body: some Scene {
         MenuBarExtra("Buffer", systemImage: "doc.on.clipboard") {
             ClipboardView()
                 .environmentObject(clipboardManager)
+                .environmentObject(languageManager)
         }
         .menuBarExtraStyle(.window)
     }

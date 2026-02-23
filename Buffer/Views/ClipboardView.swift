@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ClipboardView: View {
     @EnvironmentObject private var clipboardManager: ClipboardManager
+    @EnvironmentObject private var languageManager: LanguageManager
     @State private var searchText = ""
     @State private var isAppearing = false
     @State private var selectedFilter: ClipboardFilter = .all
@@ -91,7 +92,7 @@ struct ClipboardView: View {
                             Spacer()
                             HStack {
                                 Spacer()
-                                Text("Copied!")
+                                Text(languageManager.localized("clipboard.copied"))
                                     .font(.caption)
                                     .fontWeight(.medium)
                                     .foregroundColor(.white)
@@ -122,14 +123,14 @@ struct ClipboardView: View {
     
     private var headerView: some View {
         HStack {
-            Text("Clipboard History")
+            Text(languageManager.localized("clipboard.title"))
                 .font(.headline)
                 .fontWeight(.semibold)
             
             Spacer()
             
             HStack(spacing: 8) {
-                TextField("Search", text: $searchText)
+                TextField(languageManager.localized("clipboard.search"), text: $searchText)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .frame(width: 140)
                 
@@ -161,7 +162,7 @@ struct ClipboardView: View {
             HStack(spacing: 8) {
                 ForEach(ClipboardFilter.allCases, id: \.self) { filter in
                     FilterButton(
-                        title: filter.title,
+                        title: languageManager.localized(filter.localizedKey),
                         isSelected: selectedFilter == filter,
                         action: { selectedFilter = filter }
                     )
@@ -184,7 +185,7 @@ struct ClipboardView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 // Section header
                                 if let dateSection = section.0 {
-                                    Text(dateSection.title)
+                                    Text(languageManager.localized(dateSection.localizedKey))
                                         .font(.caption)
                                         .fontWeight(.semibold)
                                         .foregroundColor(.secondary)
@@ -197,7 +198,7 @@ struct ClipboardView: View {
                                     HStack(spacing: 4) {
                                         Image(systemName: "pin.fill")
                                             .font(.caption2)
-                                        Text("Pinned")
+                                        Text(languageManager.localized("filter.pinned"))
                                             .font(.caption)
                                             .fontWeight(.semibold)
                                     }
@@ -214,15 +215,15 @@ struct ClipboardView: View {
                                         previewedImage = ImagePreviewData(image: nsImage)
                                     })
                                     .contextMenu {
-                                        Button("Copy") { 
+                                        Button(languageManager.localized("context.copy")) { 
                                             clipboardManager.copyItem(item)
                                             triggerCopyFeedback()
                                         }
-                                        Button(item.isPinned ? "Unpin" : "Pin") { 
+                                        Button(item.isPinned ? languageManager.localized("context.unpin") : languageManager.localized("context.pin")) { 
                                             clipboardManager.togglePin(item) 
                                         }
                                         Divider()
-                                        Button("Delete") { clipboardManager.removeItem(item) }
+                                        Button(languageManager.localized("context.delete")) { clipboardManager.removeItem(item) }
                                     }
                                     .onTapGesture { 
                                         clipboardManager.copyItem(item)
@@ -268,54 +269,54 @@ struct ClipboardView: View {
     
     private var emptyStateMessage: String {
         if !searchText.isEmpty {
-            return "No items found"
+            return languageManager.localized("empty.noFound")
         }
         switch selectedFilter {
         case .all:
-            return "No clipboard items"
+            return languageManager.localized("empty.noClipboard")
         case .text:
-            return "No text items"
+            return languageManager.localized("empty.noText")
         case .images:
-            return "No images"
+            return languageManager.localized("empty.noImages")
         case .files:
-            return "No files"
+            return languageManager.localized("empty.noFiles")
         case .urls:
-            return "No URLs"
+            return languageManager.localized("empty.noUrls")
         case .pinned:
-            return "No pinned items"
+            return languageManager.localized("empty.noPinned")
         }
     }
     
     private var emptyStateSubtitle: String {
         if !searchText.isEmpty {
-            return "Try adjusting your search terms"
+            return languageManager.localized("emptySub.trySearch")
         }
         switch selectedFilter {
         case .all:
-            return "Copy something to get started"
+            return languageManager.localized("emptySub.copyStart")
         case .text:
-            return "Copy some text to see it here"
+            return languageManager.localized("emptySub.copyText")
         case .images:
-            return "Copy an image to see it here"
+            return languageManager.localized("emptySub.copyImage")
         case .files:
-            return "Copy a file to see it here"
+            return languageManager.localized("emptySub.copyFile")
         case .urls:
-            return "Copy a URL to see it here"
+            return languageManager.localized("emptySub.copyUrl")
         case .pinned:
-            return "Pin items to keep them here"
+            return languageManager.localized("emptySub.pinItems")
         }
     }
     
     private var footerView: some View {
         HStack {
-            Text("\(filteredItems.count) items")
+            Text("\(filteredItems.count) \(languageManager.localized("clipboard.itemsCount"))")
                 .font(.caption)
                 .foregroundColor(.secondary)
             
             Spacer()
             
             HStack(spacing: 12) {
-                Button("Clear Unpinned") { 
+                Button(languageManager.localized("clipboard.clearUnpinned")) { 
                     clipboardManager.clearUnpinned() 
                 }
                 .padding(10)
@@ -323,7 +324,7 @@ struct ClipboardView: View {
                 .buttonStyle(.plain)
                 .foregroundColor(.orange)
 
-                Button("Clear All") { 
+                Button(languageManager.localized("clipboard.clearAll")) { 
                     clipboardManager.clearAll() 
                 }
                 .padding(10)
@@ -385,14 +386,26 @@ struct FilterButton: View {
 enum ClipboardFilter: CaseIterable {
     case all, text, images, files, urls, pinned
     
-    var title: String {
+// Old code (for reference):
+//     var title: String {
+//         switch self {
+//         case .all: return "All"
+//         case .text: return "Text"
+//         case .images: return "Images"
+//         case .files: return "Files"
+//         case .urls: return "URLs"
+//         case .pinned: return "Pinned"
+//         }
+//     }
+
+    var localizedKey: String {
         switch self {
-        case .all: return "All"
-        case .text: return "Text"
-        case .images: return "Images"
-        case .files: return "Files"
-        case .urls: return "URLs"
-        case .pinned: return "Pinned"
+        case .all: return "filter.all"
+        case .text: return "filter.text"
+        case .images: return "filter.images"
+        case .files: return "filter.files"
+        case .urls: return "filter.urls"
+        case .pinned: return "filter.pinned"
         }
     }
 }
@@ -622,6 +635,7 @@ struct ImagePreviewData: Identifiable {
 struct ImagePreviewSheet: View {
     let image: NSImage
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var languageManager: LanguageManager
     
     var body: some View {
         VStack {
@@ -631,7 +645,7 @@ struct ImagePreviewSheet: View {
                 .frame(maxWidth: 500, maxHeight: 500)
                 .padding()
             
-            Button("Close") {
+            Button(languageManager.localized("context.close")) {
                 dismiss()
             }
             .padding(.bottom)
