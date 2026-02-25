@@ -89,6 +89,7 @@ class WindowManager: NSObject, ObservableObject {
     private func setupContentView(for window: NSWindow) {
         let contentView = ClipboardView(allowDrag: false)
             .environmentObject(ClipboardManager.shared)
+            .environmentObject(LanguageManager.shared)
         window.contentView = NSHostingView(rootView: contentView)
     }
     

@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct ClipboardView: View {
+    
     @EnvironmentObject private var clipboardManager: ClipboardManager
     @EnvironmentObject private var languageManager: LanguageManager
+    
     @State private var searchText = ""
     @State private var isAppearing = false
     @State private var selectedFilter: ClipboardFilter = .all
@@ -84,6 +86,7 @@ struct ClipboardView: View {
             .onAppear(perform: setupAppearance)
             .sheet(item: $previewedImage) { preview in
                 ImagePreviewSheet(image: preview.image)
+                    .environmentObject(languageManager)
             }
             .overlay(
                 Group {
