@@ -211,7 +211,6 @@ extension ClipboardItem {
     /// Determines which date section this item belongs to based on its timestamp
     var dateSection: DateSection {
         let calendar = Calendar.current
-        let now = Date()
         let itemDate = timestamp
         
         // Check if today
