@@ -53,19 +53,21 @@ struct ClipboardItem: Identifiable, Codable {
             return ClipboardItemNameHelper.generateImageName(data: data)
         case .file:
             return ClipboardItemNameHelper.generateFileName(content: content)
-        case .url:
-            return ClipboardItemNameHelper.generateURLName(content: content)
         case .text:
             return ClipboardItemNameHelper.generateTextName(content: content)
         case .richText:
             return ClipboardItemNameHelper.generateRichTextName(content: content)
+        case .video:
+            return ClipboardItemNameHelper.generateVideoName(content: content)
         }
     }
     
     var fileExtension: String? {
         switch type {
-        case .file:
-            return URL(string: content)?.pathExtension
+        case .file, .video:
+            // The content might be multiple paths separated by newlines
+            let firstPath = content.components(separatedBy: "\n").first ?? content
+            return URL(fileURLWithPath: firstPath).pathExtension
         case .image:
             if let data = data {
                 return ClipboardItemNameHelper.detectImageFormat(from: data).lowercased()
@@ -81,16 +83,24 @@ enum ClipboardItemType: String, Codable {
     case text
     case image
     case file
-    case url
     case richText
+    case video
+    
+    // Custom decoder so that legacy types (e.g. "url", which we dropped) don't blow up the JSON
+    // deserialization and wipe the user's entire clipboard history on app restart.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        self = ClipboardItemType(rawValue: rawValue) ?? .text
+    }
     
     var icon: String {
         switch self {
         case .text: return "doc.text"
         case .image: return "photo"
         case .file: return "doc"
-        case .url: return "link"
         case .richText: return "doc.richtext"
+        case .video: return "film"
         }
     }
     
@@ -99,8 +109,8 @@ enum ClipboardItemType: String, Codable {
         case .text: return "blue"
         case .image: return "green"
         case .file: return "orange"
-        case .url: return "purple"
         case .richText: return "indigo"
+        case .video: return "red"
         }
     }
 }
@@ -111,13 +121,6 @@ extension ClipboardItem {
         
         switch type {
         case .text:
-            provider.registerObject(content as NSString, visibility: .all)
-            
-        case .url:
-            if let url = URL(string: content) {
-                provider.registerObject(url as NSURL, visibility: .all)
-            }
-            // Fallback for text consumers
             provider.registerObject(content as NSString, visibility: .all)
             
         case .image:
@@ -161,38 +164,20 @@ extension ClipboardItem {
             
             // 2. Fallback to plain text
             provider.registerObject(content as NSString, visibility: .all)
+            
+        case .video:
+            // Video is stored as a path on disk — just hand it over as a file URL, same as .file
+            let videoURL = URL(fileURLWithPath: content)
+            provider.registerObject(videoURL as NSURL, visibility: .all)
         }
         
         return provider
     }
 }
 
-// MARK: - Date Grouping
 
 enum DateSection: Int, CaseIterable {
-// Old code (for reference):
-//     case today
-//     case yesterday
-//     case twoDaysAgo
-//     case past
-//     
-//     var title: String {
-//         switch self {
-//         case .today: return "Today"
-//         case .yesterday: return "Yesterday"
-//         case .twoDaysAgo: return "2 Days Ago"
-//         case .past: return "Past"
-//         }
-//     }
-//     
-//     var titlePolish: String {
-//         switch self {
-//         case .today: return "Dzisiaj"
-//         case .yesterday: return "Wczoraj"
-//         case .twoDaysAgo: return "2 dni temu"
-//         case .past: return "Przeszłe"
-//         }
-//     }
+
 
     case today
     case yesterday
@@ -222,23 +207,6 @@ extension ClipboardItem {
         if calendar.isDateInYesterday(itemDate) {
             return .yesterday
         }
-        
-// Old code (for reference):
-//         // Check if 2 days ago
-//         if let twoDaysAgo = calendar.date(byAdding: .day, value: -2, to: calendar.startOfDay(for: now)),
-//            calendar.isDate(itemDate, inSameDayAs: twoDaysAgo) {
-//             return .twoDaysAgo
-//         }
-        
-// Old code (for reference):
-//         // Check if within last 30 days (last month)
-//         if let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now),
-//            itemDate > thirtyDaysAgo {
-//             return .lastMonth
-//         }
-//         
-//         // Otherwise, it's from last year
-//         return .lastYear
 
         // Wszystko inne zrzucamy do wspólnej przegródki reprezentującej przeszłość
         return .past

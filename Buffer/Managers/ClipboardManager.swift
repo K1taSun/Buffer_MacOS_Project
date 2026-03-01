@@ -148,9 +148,13 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        // Check for files first, as some apps put both file and string representations
-        if processFileContent() { return }
+        // Files copied from Finder to the clipboard often contain both file URLs AND raw image data.
+        // We MUST process image content first so that we extract the actual image and save it to disk. 
+        // If we process file content first, it will just save the URL path as a .file type and ignore the image data.
         if processImageContent() { return }
+        // Same idea for videos — check extension before falling through to generic .file handling
+        if processVideoContent() { return }
+        if processFileContent() { return }
         if processStringContent() { return }
         if processRichTextContent() { return }
     }
@@ -189,25 +193,18 @@ final class ClipboardManager: ObservableObject {
         let trimmedString = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedString.isEmpty, trimmedString.count > 1 else { return true }
         
-        let item: ClipboardItem
-        if let url = URL(string: trimmedString), url.scheme != nil {
-            item = ClipboardItem(content: trimmedString, type: .url)
-        } else {
-            item = ClipboardItem(content: trimmedString, type: .text)
-        }
-        
+        let item = ClipboardItem(content: trimmedString, type: .text)
         addItem(item)
         saveItems()
         return true
     }
     
     private func processFileContent() -> Bool {
-        guard let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-              !urls.isEmpty else { return false }
-        
-        // Filter for file URLs
-        let fileURLs = urls.filter { $0.isFileURL }
-        guard !fileURLs.isEmpty else { return false }
+        // .urlReadingFileURLsOnly: true prevents macOS from trying to resolve web URLs
+        // from the clipboard — without this, every copied URL floods the log with -1002 errors.
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let fileURLs = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
+              !fileURLs.isEmpty else { return false }
         
         // Combine paths with newlines to store multiple files in one item
         let combinedPaths = fileURLs.map { $0.path }.joined(separator: "\n")
@@ -218,6 +215,26 @@ final class ClipboardManager: ObservableObject {
         lastContent = combinedPaths
         
         let item = ClipboardItem(content: combinedPaths, type: .file)
+        addItem(item)
+        saveItems()
+        return true
+    }
+    
+    private func processVideoContent() -> Bool {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
+              !urls.isEmpty else { return false }
+        
+        let videoURLs = urls.filter { $0.isFileURL && ClipboardItemNameHelper.isVideoExtension($0.pathExtension) }
+        guard !videoURLs.isEmpty else { return false }
+        
+        // For now we take the first video file only (edge case: copying 2 video files together from Finder)
+        let videoPath = videoURLs[0].path
+        
+        if videoPath == lastContent { return true }
+        lastContent = videoPath
+        
+        let item = ClipboardItem(content: videoPath, type: .video)
         addItem(item)
         saveItems()
         return true
@@ -237,15 +254,24 @@ final class ClipboardManager: ObservableObject {
     
     func addItem(_ item: ClipboardItem) {
         performOnMain {
+            // Images can't be deduplicated by content (it's always "Image.JPEG" etc.),
+            // so we use the imagePath (a UUID on disk) for uniqueness checks instead.
+            let isDuplicate: (ClipboardItem) -> Bool = { existing in
+                if item.type == .image {
+                    return existing.imagePath != nil && existing.imagePath == item.imagePath
+                }
+                return existing.content == item.content
+            }
+            
             // Check for duplicate pinned items
-            if let pinnedIndex = self.items.firstIndex(where: { $0.content == item.content && $0.isPinned }) {
+            if let pinnedIndex = self.items.firstIndex(where: { isDuplicate($0) && $0.isPinned }) {
                 // Update existing pinned item
                 self.items[pinnedIndex].data = item.data
-                self.items[pinnedIndex].imagePath = item.imagePath // Update path if changed
+                self.items[pinnedIndex].imagePath = item.imagePath
                 return
             }
             // Remove unpinned duplicates
-            self.items.removeAll { $0.content == item.content && !$0.isPinned }
+            self.items.removeAll { isDuplicate($0) && !$0.isPinned }
             self.items.insert(item, at: 0)
             
             self.normalizeItemOrdering()
@@ -256,7 +282,7 @@ final class ClipboardManager: ObservableObject {
         NSPasteboard.general.clearContents()
         
         switch item.type {
-        case .text, .url:
+        case .text:
             NSPasteboard.general.setString(item.content, forType: .string)
         case .image:
             if let data = item.data {
@@ -271,6 +297,9 @@ final class ClipboardManager: ObservableObject {
             if let data = item.data {
                 NSPasteboard.general.setData(data, forType: .rtf)
             }
+        case .video:
+            let videoURL = URL(fileURLWithPath: item.content) as NSURL
+            NSPasteboard.general.writeObjects([videoURL])
         }
     }
     
@@ -360,7 +389,7 @@ final class ClipboardManager: ObservableObject {
                 
                 performOnMain {
                     self.items = decodedItems
-                    self.lastContent = decodedItems.first(where: { $0.type == .text || $0.type == .url })?.content
+                    self.lastContent = decodedItems.first(where: { $0.type == .text })?.content
                     if let imageItem = decodedItems.first(where: { $0.type == .image }), let data = imageItem.data {
                         self.lastImageHash = data.sha256()
                     } else {

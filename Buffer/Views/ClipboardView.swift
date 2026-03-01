@@ -33,12 +33,22 @@ struct ClipboardView: View {
             return searchFiltered
         case .text:
             return searchFiltered.filter { $0.type == .text }
+// Old code (for reference):
+//         case .images:
+//             return searchFiltered.filter { $0.type == .image }
         case .images:
-            return searchFiltered.filter { $0.type == .image }
+            return searchFiltered.filter { item in
+                if item.type == .image { return true }
+                if item.type == .file, let ext = item.fileExtension {
+                    return ClipboardItemNameHelper.isImageExtension(ext)
+                }
+                
+                return false
+            }
+        case .videos:
+            return searchFiltered.filter { $0.type == .video }
         case .files:
             return searchFiltered.filter { $0.type == .file }
-        case .urls:
-            return searchFiltered.filter { $0.type == .url }
         case .pinned:
             return searchFiltered.filter { $0.isPinned }
         }
@@ -80,7 +90,7 @@ struct ClipboardView: View {
                 contentView
                 footerView
             }
-            .frame(width: 450, height: 600)
+            .frame(width: 460, height: 600)
             .opacity(isAppearing ? 1 : 0)
             .scaleEffect(isAppearing ? 1 : 0.95)
             .onAppear(perform: setupAppearance)
@@ -281,10 +291,10 @@ struct ClipboardView: View {
             return languageManager.localized("empty.noText")
         case .images:
             return languageManager.localized("empty.noImages")
+        case .videos:
+            return languageManager.localized("empty.noVideos")
         case .files:
             return languageManager.localized("empty.noFiles")
-        case .urls:
-            return languageManager.localized("empty.noUrls")
         case .pinned:
             return languageManager.localized("empty.noPinned")
         }
@@ -301,10 +311,10 @@ struct ClipboardView: View {
             return languageManager.localized("emptySub.copyText")
         case .images:
             return languageManager.localized("emptySub.copyImage")
+        case .videos:
+            return languageManager.localized("emptySub.copyVideo")
         case .files:
             return languageManager.localized("emptySub.copyFile")
-        case .urls:
-            return languageManager.localized("emptySub.copyUrl")
         case .pinned:
             return languageManager.localized("emptySub.pinItems")
         }
@@ -387,7 +397,7 @@ struct FilterButton: View {
 }
 
 enum ClipboardFilter: CaseIterable {
-    case all, text, images, files, urls, pinned
+    case all, text, images, videos, files, pinned
     
 // Old code (for reference):
 //     var title: String {
@@ -406,8 +416,8 @@ enum ClipboardFilter: CaseIterable {
         case .all: return "filter.all"
         case .text: return "filter.text"
         case .images: return "filter.images"
+        case .videos: return "filter.videos"
         case .files: return "filter.files"
-        case .urls: return "filter.urls"
         case .pinned: return "filter.pinned"
         }
     }
@@ -455,12 +465,42 @@ struct ClipboardItemView: View {
                     .onTapGesture {
                         onImageTap?(nsImage)
                     }
+// Old code (for reference):
+//             } else if item.type == .file, let url = URL(string: item.content), !url.path.isEmpty {
+//                 let icon = NSWorkspace.shared.icon(forFile: url.path)
+//                 Image(nsImage: icon)
+//                     .resizable()
+//                     .scaledToFit()
+//                     .frame(width: 44, height: 44)
+//             } else {
             } else if item.type == .file, let url = URL(string: item.content), !url.path.isEmpty {
-                let icon = NSWorkspace.shared.icon(forFile: url.path)
+                // If the file is an image, we try to load it as an image for the thumbnail
+                // Fallback to the file icon if the image cannot be loaded
+                if let ext = item.fileExtension, ClipboardItemNameHelper.isImageExtension(ext), let image = NSImage(contentsOf: url) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .cornerRadius(6)
+                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                        .onTapGesture {
+                            onImageTap?(image) // Allow previewing the image file
+                        }
+                } else {
+                    let icon = NSWorkspace.shared.icon(forFile: url.path)
+                    Image(nsImage: icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                }
+            } else if item.type == .video {
+                // NSWorkspace will show the system video file icon (QuickTime, etc.)
+                let icon = NSWorkspace.shared.icon(forFile: item.content)
                 Image(nsImage: icon)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 44, height: 44)
+                    .cornerRadius(4)
             } else {
                 Image(systemName: item.type.icon)
                     .font(.system(size: 20))
