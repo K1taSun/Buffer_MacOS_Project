@@ -516,7 +516,8 @@ struct ClipboardItemView: View {
                             .foregroundColor(.secondary)
                     }
                     if let source = item.sourceApp {
-                        Text("• \(source)")
+                        let formattedSource = source.replacingOccurrences(of: "com.apple.", with: "")
+                        Text("• \(formattedSource)")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
