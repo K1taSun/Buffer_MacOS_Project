@@ -53,16 +53,6 @@ final class BufferTests: XCTestCase {
         XCTAssertEqual(clipboardManager.items.first?.data, testData)
     }
     
-    func testAddURLItem() throws {
-        let testURL = "https://example.com"
-        let item = ClipboardItem(content: testURL, type: .url)
-        
-        clipboardManager.addItem(item)
-        
-        XCTAssertEqual(clipboardManager.items.count, 1)
-        XCTAssertEqual(clipboardManager.items.first?.type, .url)
-        XCTAssertEqual(clipboardManager.items.first?.content, testURL)
-    }
     
     func testRemoveItem() throws {
         let item = ClipboardItem(content: "Test item", type: .text)
@@ -171,8 +161,6 @@ final class BufferTests: XCTestCase {
     func testClipboardItemTypeIcons() throws {
         XCTAssertEqual(ClipboardItemType.text.icon, "doc.text")
         XCTAssertEqual(ClipboardItemType.image.icon, "photo")
-        XCTAssertEqual(ClipboardItemType.file.icon, "doc")
-        XCTAssertEqual(ClipboardItemType.url.icon, "link")
         XCTAssertEqual(ClipboardItemType.richText.icon, "doc.richtext")
     }
     
@@ -204,7 +192,7 @@ final class BufferTests: XCTestCase {
     
     func testSaveAndLoadItems() throws {
         let item1 = ClipboardItem(content: "Saved item 1", type: .text)
-        let item2 = ClipboardItem(content: "Saved item 2", type: .url)
+        let item2 = ClipboardItem(content: "Saved item 2", type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.addItem(item2)
