@@ -22,8 +22,11 @@ struct ClipboardView: View {
             searchFiltered = items
         } else {
             let lowerSearch = searchText.lowercased()
-            searchFiltered = items.filter { 
-                $0.content.lowercased().contains(lowerSearch)
+            searchFiltered = items.filter { item in
+                // Szukamy tylko w odpowiednim filtrze (zgodnie z i.txt UX hint)
+                if selectedFilter == .images && item.type != .image { return false }
+                
+                return item.contentPayload.lowercased().contains(lowerSearch)
             }
         }
         
@@ -37,16 +40,9 @@ struct ClipboardView: View {
 //         case .images:
 //             return searchFiltered.filter { $0.type == .image }
         case .images:
-            return searchFiltered.filter { item in
-                if item.type == .image { return true }
-                if item.type == .file, let ext = item.fileExtension {
-                    return ClipboardItemNameHelper.isImageExtension(ext)
-                }
-                
-                return false
-            }
+            return searchFiltered.filter { $0.type == .image }
         case .videos:
-            return searchFiltered.filter { $0.type == .video }
+            return searchFiltered.filter { $0.type == .video || $0.type == .audio }
         case .files:
             return searchFiltered.filter { $0.type == .file }
         case .pinned:
@@ -90,7 +86,7 @@ struct ClipboardView: View {
                 contentView
                 footerView
             }
-            .frame(width: 460, height: 600)
+            .frame(width: 440, height: 550)
             .opacity(isAppearing ? 1 : 0)
             .scaleEffect(isAppearing ? 1 : 0.95)
             .onAppear(perform: setupAppearance)
@@ -416,7 +412,7 @@ enum ClipboardFilter: CaseIterable {
         case .all: return "filter.all"
         case .text: return "filter.text"
         case .images: return "filter.images"
-        case .videos: return "filter.videos"
+        case .videos: return "filter.videos" // Videos / Audio
         case .files: return "filter.files"
         case .pinned: return "filter.pinned"
         }
@@ -455,61 +451,53 @@ struct ClipboardItemView: View {
     
     private var itemIcon: some View {
         Group {
-            if item.type == .image, let data = item.data, let nsImage = NSImage(data: data) {
-                Image(nsImage: nsImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 44, height: 44)
-                    .cornerRadius(6)
-                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    .onTapGesture {
-                        onImageTap?(nsImage)
-                    }
-// Old code (for reference):
-//             } else if item.type == .file, let url = URL(string: item.content), !url.path.isEmpty {
-//                 let icon = NSWorkspace.shared.icon(forFile: url.path)
-//                 Image(nsImage: icon)
-//                     .resizable()
-//                     .scaledToFit()
-//                     .frame(width: 44, height: 44)
-//             } else {
-            } else if item.type == .file, let url = URL(string: item.content), !url.path.isEmpty {
-                // If the file is an image, we try to load it as an image for the thumbnail
-                // Fallback to the file icon if the image cannot be loaded
-                if let ext = item.fileExtension, ClipboardItemNameHelper.isImageExtension(ext), let image = NSImage(contentsOf: url) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .cornerRadius(6)
-                        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                        .onTapGesture {
-                            onImageTap?(image) // Allow previewing the image file
-                        }
+            if item.type == .image {
+                if let data = item.data, let nsImage = NSImage(data: data) {
+                    // RAM data exists directly in clipboard (tiny copies)
+                    renderImageThumbnail(nsImage)
                 } else {
-                    let icon = NSWorkspace.shared.icon(forFile: url.path)
-                    Image(nsImage: icon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
+                    let firstPath = item.contentPayload.components(separatedBy: "\n").first ?? item.contentPayload
+                    AsyncThumbnailView(
+                        url: URL(fileURLWithPath: firstPath),
+                        fallbackIcon: item.type.icon,
+                        onImageTap: onImageTap
+                    )
                 }
-            } else if item.type == .video {
-                // NSWorkspace will show the system video file icon (QuickTime, etc.)
-                let icon = NSWorkspace.shared.icon(forFile: item.content)
+            } else if item.type == .file || item.type == .video || item.type == .audio {
+                let firstPath = item.contentPayload.components(separatedBy: "\n").first ?? item.contentPayload
+                let icon = NSWorkspace.shared.icon(forFile: firstPath)
                 Image(nsImage: icon)
                     .resizable()
                     .scaledToFit()
                     .frame(width: 44, height: 44)
-                    .cornerRadius(4)
+                    .cornerRadius(item.type == .file ? 0 : 4)
             } else {
-                Image(systemName: item.type.icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .frame(width: 44, height: 44)
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(6)
+                renderFallbackIcon()
             }
         }
+    }
+    
+    @ViewBuilder
+    private func renderImageThumbnail(_ image: NSImage) -> some View {
+        Image(nsImage: image)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 44, height: 44)
+            .cornerRadius(6)
+            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+            .onTapGesture {
+                onImageTap?(image)
+            }
+    }
+
+    @ViewBuilder
+    private func renderFallbackIcon() -> some View {
+        Image(systemName: item.type.icon)
+            .font(.system(size: 20))
+            .foregroundColor(.secondary)
+            .frame(width: 44, height: 44)
+            .background(Color.secondary.opacity(0.1))
+            .cornerRadius(6)
     }
     
     private var itemContent: some View {
@@ -526,6 +514,12 @@ struct ClipboardItemView: View {
                         Text("(\(fileExt))")
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                    }
+                    if let source = item.sourceApp {
+                        Text("• \(source)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
                     }
                 }
                     .font(.caption)
@@ -695,4 +689,40 @@ struct ImagePreviewSheet: View {
         }
         .frame(minWidth: 300, minHeight: 300)
     }
-} 
+}
+
+struct AsyncThumbnailView: View {
+    let url: URL
+    let fallbackIcon: String
+    let onImageTap: ((NSImage) -> Void)?
+    
+    @State private var image: NSImage?
+    
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 44, height: 44)
+                    .cornerRadius(6)
+                    .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                    .onTapGesture {
+                        onImageTap?(image)
+                    }
+            } else {
+                Image(systemName: fallbackIcon)
+                    .font(.system(size: 20))
+                    .foregroundColor(.secondary)
+                    .frame(width: 44, height: 44)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(6)
+                    .onAppear {
+                        ImageCache.shared.loadThumbnail(for: url) { loadedImage in
+                            self.image = loadedImage
+                        }
+                    }
+            }
+        }
+    }
+}

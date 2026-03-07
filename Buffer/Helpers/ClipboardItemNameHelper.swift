@@ -145,9 +145,23 @@ public struct ClipboardItemNameHelper {
         return supportedVideoExtensions.contains(ext.lowercased())
     }
     
+    public static let supportedAudioExtensions: Set<String> = [
+        "mp3", "wav", "aac", "ogg", "flac", "m4a", "wma", "aiff", "alac", "pcm", "mka"
+    ]
+    
+    public static func isAudioExtension(_ ext: String) -> Bool {
+        return supportedAudioExtensions.contains(ext.lowercased())
+    }
+    
     static func generateVideoName(content: String) -> String {
         let firstPath = content.components(separatedBy: "\n").first ?? content
         let fileName = URL(fileURLWithPath: firstPath).lastPathComponent
         return fileName.isEmpty ? "Video" : fileName
+    }
+    
+    static func generateAudioName(content: String) -> String {
+        let firstPath = content.components(separatedBy: "\n").first ?? content
+        let fileName = URL(fileURLWithPath: firstPath).lastPathComponent
+        return fileName.isEmpty ? "Audio" : fileName
     }
 } 

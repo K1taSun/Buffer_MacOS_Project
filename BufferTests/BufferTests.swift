@@ -33,18 +33,18 @@ final class BufferTests: XCTestCase {
     
     func testAddTextItem() throws {
         let testContent = "Test text content"
-        let item = ClipboardItem(content: testContent, type: .text)
+        let item = ClipboardItem(contentPayload: testContent, type: .text)
         
         clipboardManager.addItem(item)
         
         XCTAssertEqual(clipboardManager.items.count, 1)
-        XCTAssertEqual(clipboardManager.items.first?.content, testContent)
+        XCTAssertEqual(clipboardManager.items.first?.contentPayload, testContent)
         XCTAssertEqual(clipboardManager.items.first?.type, .text)
     }
     
     func testAddImageItem() throws {
         let testData = Data("fake image data".utf8)
-        let item = ClipboardItem(content: "Test Image", type: .image, data: testData)
+        let item = ClipboardItem(contentPayload: "Image", type: .image, data: testData)
         
         clipboardManager.addItem(item)
         
@@ -55,7 +55,7 @@ final class BufferTests: XCTestCase {
     
     
     func testRemoveItem() throws {
-        let item = ClipboardItem(content: "Test item", type: .text)
+        let item = ClipboardItem(contentPayload: "Test item", type: .text)
         clipboardManager.addItem(item)
         
         XCTAssertEqual(clipboardManager.items.count, 1)
@@ -66,7 +66,7 @@ final class BufferTests: XCTestCase {
     }
     
     func testTogglePin() throws {
-        let item = ClipboardItem(content: "Test item", type: .text)
+        let item = ClipboardItem(contentPayload: "Test item", type: .text)
         clipboardManager.addItem(item)
         
         XCTAssertFalse(clipboardManager.items.first?.isPinned ?? true)
@@ -81,8 +81,8 @@ final class BufferTests: XCTestCase {
     }
     
     func testClearAll() throws {
-        let item1 = ClipboardItem(content: "Test item 1", type: .text)
-        let item2 = ClipboardItem(content: "Test item 2", type: .text)
+        let item1 = ClipboardItem(contentPayload: "Test item 1", type: .text)
+        let item2 = ClipboardItem(contentPayload: "Test item 2", type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.addItem(item2)
@@ -95,8 +95,8 @@ final class BufferTests: XCTestCase {
     }
     
     func testClearUnpinned() throws {
-        let item1 = ClipboardItem(content: "Test item 1", type: .text)
-        let item2 = ClipboardItem(content: "Test item 2", type: .text)
+        let item1 = ClipboardItem(contentPayload: "Test item 1", type: .text)
+        let item2 = ClipboardItem(contentPayload: "Test item 2", type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.addItem(item2)
@@ -115,20 +115,20 @@ final class BufferTests: XCTestCase {
     
     func testDuplicatePrevention() throws {
         let content = "Duplicate content"
-        let item1 = ClipboardItem(content: content, type: .text)
-        let item2 = ClipboardItem(content: content, type: .text)
+        let item1 = ClipboardItem(contentPayload: content, type: .text)
+        let item2 = ClipboardItem(contentPayload: content, type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.addItem(item2)
         
         XCTAssertEqual(clipboardManager.items.count, 1)
-        XCTAssertEqual(clipboardManager.items.first?.content, content)
+        XCTAssertEqual(clipboardManager.items.first?.contentPayload, content)
     }
     
     func testPinnedItemsNotRemovedByDuplicates() throws {
         let content = "Pinned content"
-        let item1 = ClipboardItem(content: content, type: .text)
-        let item2 = ClipboardItem(content: content, type: .text)
+        let item1 = ClipboardItem(contentPayload: content, type: .text)
+        let item2 = ClipboardItem(contentPayload: content, type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.togglePin(item1)
@@ -148,9 +148,9 @@ final class BufferTests: XCTestCase {
         let type = ClipboardItemType.text
         let data = Data("test data".utf8)
         
-        let item = ClipboardItem(content: content, type: type, data: data)
+        let item = ClipboardItem(contentPayload: content, type: .text, data: data)
         
-        XCTAssertEqual(item.content, content)
+        XCTAssertEqual(item.contentPayload, content)
         XCTAssertEqual(item.type, type)
         XCTAssertEqual(item.data, data)
         XCTAssertFalse(item.isPinned)
@@ -162,6 +162,7 @@ final class BufferTests: XCTestCase {
         XCTAssertEqual(ClipboardItemType.text.icon, "doc.text")
         XCTAssertEqual(ClipboardItemType.image.icon, "photo")
         XCTAssertEqual(ClipboardItemType.richText.icon, "doc.richtext")
+        XCTAssertEqual(ClipboardItemType.audio.icon, "waveform")
     }
     
     // MARK: - Performance Tests
@@ -169,7 +170,7 @@ final class BufferTests: XCTestCase {
     func testAddManyItemsPerformance() throws {
         measure {
             for i in 0..<100 {
-                let item = ClipboardItem(content: "Item \(i)", type: .text)
+                let item = ClipboardItem(contentPayload: "Item \(i)", type: .text)
                 clipboardManager.addItem(item)
             }
         }
@@ -178,12 +179,12 @@ final class BufferTests: XCTestCase {
     func testSearchPerformance() throws {
         // Add many items first
         for i in 0..<100 {
-            let item = ClipboardItem(content: "Item \(i)", type: .text)
+            let item = ClipboardItem(contentPayload: "Item \(i)", type: .text)
             clipboardManager.addItem(item)
         }
         
         measure {
-            let filtered = clipboardManager.items.filter { $0.content.contains("50") }
+            let filtered = clipboardManager.items.filter { $0.contentPayload.contains("50") }
             XCTAssertGreaterThan(filtered.count, 0)
         }
     }
@@ -191,8 +192,8 @@ final class BufferTests: XCTestCase {
     // MARK: - Data Persistence Tests
     
     func testSaveAndLoadItems() throws {
-        let item1 = ClipboardItem(content: "Saved item 1", type: .text)
-        let item2 = ClipboardItem(content: "Saved item 2", type: .text)
+        let item1 = ClipboardItem(contentPayload: "Saved item 1", type: .text)
+        let item2 = ClipboardItem(contentPayload: "Saved item 2", type: .text)
         
         clipboardManager.addItem(item1)
         clipboardManager.addItem(item2)

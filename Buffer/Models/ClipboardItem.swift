@@ -1,6 +1,8 @@
 import Foundation
 import AppKit
 
+// OLD CODE (for reference):
+/*
 struct ClipboardItem: Identifiable, Codable {
     let id: UUID
     let content: String
@@ -11,62 +13,109 @@ struct ClipboardItem: Identifiable, Codable {
     
     // Data is not encoded/decoded automatically
     var data: Data?
+    ...
+}
+*/
+
+struct ClipboardItem: Identifiable, Codable {
+    let id: UUID
+    var timestamp: Date
+    let type: ClipboardItemType
+    var contentPreview: String?
+    let contentPayload: String
+    var isPinned: Bool
+    var sourceApp: String?
+    
+    // Data is not encoded/decoded automatically. Used for short-term caching.
+    var data: Data?
     
     enum CodingKeys: String, CodingKey {
-        case id, content, type, timestamp, isPinned, imagePath
+        case id
+        case timestamp
+        case type
+        case contentPreview = "content_preview"
+        case contentPayload = "content_payload"
+        case isPinned = "is_pinned"
+        case sourceApp = "source_app"
     }
     
-    init(content: String, type: ClipboardItemType, data: Data? = nil, imagePath: String? = nil) {
+    init(contentPayload: String, type: ClipboardItemType, data: Data? = nil, contentPreview: String? = nil, sourceApp: String? = nil) {
         self.id = UUID()
-        self.content = content
+        self.contentPayload = contentPayload
         self.type = type
         self.timestamp = Date()
         self.isPinned = false
         self.data = data
-        self.imagePath = imagePath
+        self.contentPreview = contentPreview
+        self.sourceApp = sourceApp
     }
     
-    // Custom decoding to handle legacy data if needed, or just default
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(UUID.self, forKey: .id)
-        content = try container.decode(String.self, forKey: .content)
-        type = try container.decode(ClipboardItemType.self, forKey: .type)
-        timestamp = try container.decode(Date.self, forKey: .timestamp)
-        isPinned = try container.decode(Bool.self, forKey: .isPinned)
-        imagePath = try container.decodeIfPresent(String.self, forKey: .imagePath)
+        
+        // Handle current structure
+        if container.contains(.contentPayload) {
+            id = try container.decode(UUID.self, forKey: .id)
+            timestamp = try container.decode(Date.self, forKey: .timestamp)
+            type = try container.decode(ClipboardItemType.self, forKey: .type)
+            contentPreview = try container.decodeIfPresent(String.self, forKey: .contentPreview)
+            contentPayload = try container.decode(String.self, forKey: .contentPayload)
+            isPinned = try container.decode(Bool.self, forKey: .isPinned)
+            sourceApp = try container.decodeIfPresent(String.self, forKey: .sourceApp)
+        } else {
+            // // Old code fallback (for reference):
+            // Fallback for old structure migration (content, imagePath)
+            enum LegacyKeys: String, CodingKey {
+                case id, content, type, timestamp, isPinned, imagePath
+            }
+            let legacyContainer = try decoder.container(keyedBy: LegacyKeys.self)
+            
+            id = try legacyContainer.decode(UUID.self, forKey: .id)
+            let oldContent = try legacyContainer.decode(String.self, forKey: .content)
+            contentPayload = oldContent
+            type = try legacyContainer.decode(ClipboardItemType.self, forKey: .type)
+            timestamp = try legacyContainer.decode(Date.self, forKey: .timestamp)
+            isPinned = try legacyContainer.decode(Bool.self, forKey: .isPinned)
+            contentPreview = try legacyContainer.decodeIfPresent(String.self, forKey: .imagePath)
+            sourceApp = nil // Did not exist previously
+        }
     }
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
-        try container.encode(content, forKey: .content)
-        try container.encode(type, forKey: .type)
         try container.encode(timestamp, forKey: .timestamp)
+        try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(contentPreview, forKey: .contentPreview)
+        try container.encode(contentPayload, forKey: .contentPayload)
         try container.encode(isPinned, forKey: .isPinned)
-        try container.encode(imagePath, forKey: .imagePath)
+        try container.encodeIfPresent(sourceApp, forKey: .sourceApp)
     }
     
     var displayName: String {
         switch type {
         case .image:
+            if !contentPayload.starts(with: "Image.") {
+                return ClipboardItemNameHelper.generateFileName(content: contentPayload)
+            }
             return ClipboardItemNameHelper.generateImageName(data: data)
         case .file:
-            return ClipboardItemNameHelper.generateFileName(content: content)
+            return ClipboardItemNameHelper.generateFileName(content: contentPayload)
         case .text:
-            return ClipboardItemNameHelper.generateTextName(content: content)
+            return ClipboardItemNameHelper.generateTextName(content: contentPayload)
         case .richText:
-            return ClipboardItemNameHelper.generateRichTextName(content: content)
+            return ClipboardItemNameHelper.generateRichTextName(content: contentPayload)
         case .video:
-            return ClipboardItemNameHelper.generateVideoName(content: content)
+            return ClipboardItemNameHelper.generateVideoName(content: contentPayload)
+        case .audio:
+            return ClipboardItemNameHelper.generateAudioName(content: contentPayload)
         }
     }
     
     var fileExtension: String? {
         switch type {
-        case .file, .video:
-            // The content might be multiple paths separated by newlines
-            let firstPath = content.components(separatedBy: "\n").first ?? content
+        case .file, .video, .audio:
+            let firstPath = contentPayload.components(separatedBy: "\n").first ?? contentPayload
             return URL(fileURLWithPath: firstPath).pathExtension
         case .image:
             if let data = data {
@@ -85,6 +134,7 @@ enum ClipboardItemType: String, Codable {
     case file
     case richText
     case video
+    case audio
     
     // Custom decoder so that legacy types (e.g. "url", which we dropped) don't blow up the JSON
     // deserialization and wipe the user's entire clipboard history on app restart.
@@ -101,6 +151,7 @@ enum ClipboardItemType: String, Codable {
         case .file: return "doc"
         case .richText: return "doc.richtext"
         case .video: return "film"
+        case .audio: return "waveform"
         }
     }
     
@@ -111,6 +162,7 @@ enum ClipboardItemType: String, Codable {
         case .file: return "orange"
         case .richText: return "indigo"
         case .video: return "red"
+        case .audio: return "purple"
         }
     }
 }
@@ -121,7 +173,7 @@ extension ClipboardItem {
         
         switch type {
         case .text:
-            provider.registerObject(content as NSString, visibility: .all)
+            provider.registerObject(contentPayload as NSString, visibility: .all)
             
         case .image:
             if let data = data, let image = NSImage(data: data) {
@@ -130,7 +182,7 @@ extension ClipboardItem {
             
         case .file:
             // Handle multiple files
-            let paths = content.components(separatedBy: "\n").filter { !$0.isEmpty }
+            let paths = contentPayload.components(separatedBy: "\n").filter { !$0.isEmpty }
             
             if !paths.isEmpty {
                 // 1. Modern file URL support (for the first file - standard consumers)
@@ -150,7 +202,7 @@ extension ClipboardItem {
                     return nil
                 }
             } else {
-                provider.registerObject(content as NSString, visibility: .all)
+                provider.registerObject(contentPayload as NSString, visibility: .all)
             }
             
         case .richText:
@@ -163,12 +215,12 @@ extension ClipboardItem {
             }
             
             // 2. Fallback to plain text
-            provider.registerObject(content as NSString, visibility: .all)
+            provider.registerObject(contentPayload as NSString, visibility: .all)
             
-        case .video:
-            // Video is stored as a path on disk — just hand it over as a file URL, same as .file
-            let videoURL = URL(fileURLWithPath: content)
-            provider.registerObject(videoURL as NSURL, visibility: .all)
+        case .video, .audio:
+            // Media is stored as a path on disk — just hand it over as a file URL, same as .file
+            let mediaURL = URL(fileURLWithPath: contentPayload)
+            provider.registerObject(mediaURL as NSURL, visibility: .all)
         }
         
         return provider

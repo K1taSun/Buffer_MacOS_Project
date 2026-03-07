@@ -1,0 +1,51 @@
+{
+    "settings.title": "Settings",
+    "settings.language": "Language",
+    "settings.globalShortcut": "Global Shortcut",
+    "settings.recording": "Recording... Press keys",
+    "settings.defaultShortcut": "⌘⇧V (Default)",
+    "settings.done": "Done",
+    
+    "clipboard.title": "Clipboard History",
+    "clipboard.search": "Search",
+    "clipboard.itemsCount": "items",
+    "clipboard.clearUnpinned": "Clear Unpinned",
+    "clipboard.clearAll": "Clear All",
+    "clipboard.copied": "Copied!",
+    
+    "filter.all": "All",
+    "filter.text": "Text",
+    "filter.images": "Images",
+    "filter.videos": "Videos",
+    "filter.files": "Files",
+    "filter.urls": "URLs",
+    "filter.pinned": "Pinned",
+    
+    "empty.noFound": "No items found",
+    "empty.noClipboard": "No clipboard items",
+    "empty.noText": "No text items",
+    "empty.noImages": "No images",
+    "empty.noVideos": "No videos",
+    "empty.noFiles": "No files",
+    "empty.noUrls": "No URLs",
+    "empty.noPinned": "No pinned items",
+    
+    "emptySub.trySearch": "Try adjusting your search terms",
+    "emptySub.copyStart": "Copy something to get started",
+    "emptySub.copyText": "Copy some text to see it here",
+    "emptySub.copyImage": "Copy an image to see it here",
+    "emptySub.copyVideo": "Copy a video file to see it here",
+    "emptySub.copyFile": "Copy a file to see it here",
+    "emptySub.copyUrl": "Copy a URL to see it here",
+    "emptySub.pinItems": "Pin items to keep them here",
+    
+    "date.today": "Today",
+    "date.yesterday": "Yesterday",
+    "date.past": "Past",
+    
+    "context.copy": "Copy",
+    "context.pin": "Pin",
+    "context.unpin": "Unpin",
+    "context.delete": "Delete",
+    "context.close": "Close"
+}

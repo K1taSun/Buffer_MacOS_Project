@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import Combine
 import CryptoKit
+import UniformTypeIdentifiers
 
 private enum Config {
     static let maxItems = 1024
@@ -15,9 +16,11 @@ final class ClipboardManager: ObservableObject {
     @Published var items: [ClipboardItem] = []
     
     private var timer: Timer?
+    private var pasteboard: NSPasteboard = .general
     private var lastChangeCount: Int = 0
     private var lastContent: String?
     private var lastImageHash: String?
+    private var pollingTask: Task<Void, Never>?
     private var isProcessing = false
     private var saveWorkItem: DispatchWorkItem?
     
@@ -29,8 +32,12 @@ final class ClipboardManager: ObservableObject {
     
     private init() {
         createImagesDirectoryIfNeeded()
-        startMonitoring()
+        setupPolling()
         loadSavedItems()
+    }
+    
+    deinit {
+        pollingTask?.cancel()
     }
     
     // MARK: - File System Helpers
@@ -46,7 +53,11 @@ final class ClipboardManager: ObservableObject {
     
     private func createImagesDirectoryIfNeeded() {
         guard let url = imagesDirectoryURL else { return }
-        try? fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+        do {
+            try fileManager.createDirectory(at: url, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            print("🚨 [Storage] CRITICAL: Failed to create images directory: \(error)")
+        }
     }
     
     private func saveImageToDisk(_ data: Data) -> String? {
@@ -66,47 +77,39 @@ final class ClipboardManager: ObservableObject {
     private func loadImageFromDisk(fileName: String) -> Data? {
         guard let imagesDir = imagesDirectoryURL else { return nil }
         let fileURL = imagesDir.appendingPathComponent(fileName)
-        return try? Data(contentsOf: fileURL)
+        do {
+            return try Data(contentsOf: fileURL)
+        } catch {
+            print("🚨 [Storage] ERROR: Failed to load image \(fileName) from disk: \(error)")
+            return nil
+        }
     }
     
     private func deleteImageFromDisk(fileName: String) {
         guard let imagesDir = imagesDirectoryURL else { return }
         let fileURL = imagesDir.appendingPathComponent(fileName)
-        try? fileManager.removeItem(at: fileURL)
+        do {
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
+            }
+        } catch {
+            print("🚨 [Storage] ERROR: Failed to delete image \(fileName): \(error)")
+        }
     }
     
     // MARK: - Monitoring
     
-    private func startMonitoring() {
-        // Poprzednia implementacja (dla odniesienia - same sprawdzanie schowka):
-        // stopMonitoring()
-        // 
-        // timer = Timer.scheduledTimer(withTimeInterval: Config.checkInterval, repeats: true) { [weak self] _ in
-        //     self?.checkClipboard()
-        // }
-        // 
-        // if let timer = timer {
-        //     RunLoop.current.add(timer, forMode: .common)
-        // }
-        
-        stopMonitoring()
-        
-        timer = Timer.scheduledTimer(withTimeInterval: Config.checkInterval, repeats: true) { [weak self] _ in
-            self?.checkClipboard()
-            self?.triggerUIRefreshIfNeeded()
-        }
-        
-        if let timer = timer {
-            RunLoop.current.add(timer, forMode: .common)
+    private func setupPolling() {
+        // Poll every 0.75s using a yielding Task to improve battery efficiency vs raw RunLoop Timers
+        pollingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.checkForChanges()
+                try? await Task.sleep(nanoseconds: 750_000_000)
+            }
         }
     }
     
-    private func stopMonitoring() {
-        timer?.invalidate()
-        timer = nil
-    }
-    
-    private func checkClipboard() {
+    private func checkForChanges() {
         guard !isProcessing else { return }
         
         let changeCount = NSPasteboard.general.changeCount
@@ -147,36 +150,58 @@ final class ClipboardManager: ObservableObject {
         }
     }
     
+    // Helper to get source app
+    private func getSourceApp() -> String? {
+        // We use the frontmost application which typically represents what the user just copied from.
+        return NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
+    
     private func processClipboardContent() {
-        // Files copied from Finder to the clipboard often contain both file URLs AND raw image data.
-        // We MUST process image content first so that we extract the actual image and save it to disk. 
-        // If we process file content first, it will just save the URL path as a .file type and ignore the image data.
+        // OLD CODE (for reference):
+        /*
         if processImageContent() { return }
-        // Same idea for videos — check extension before falling through to generic .file handling
         if processVideoContent() { return }
         if processFileContent() { return }
         if processStringContent() { return }
         if processRichTextContent() { return }
+        */
+        
+        let pb = NSPasteboard.general
+        let sourceApp = getSourceApp()
+        
+        // Let's rely on explicit UTIs first
+        // 1. Check for files/media dragged from finder (which give file URLs)
+        if processFileURLs(from: pb, sourceApp: sourceApp) { return }
+        
+        // 2. Check for explicit image data in memory (like a screenshot)
+        if processImageContent(from: pb, sourceApp: sourceApp) { return }
+        
+        // 3. Rich text
+        if processRichTextContent(from: pb, sourceApp: sourceApp) { return }
+        
+        // 4. Plain text fallback
+        if processStringContent(from: pb, sourceApp: sourceApp) { return }
     }
     
-    private func processImageContent() -> Bool {
-        guard let imageData = NSPasteboard.general.data(forType: .tiff) else { return false }
+    private func processFileURLs(from pb: NSPasteboard, sourceApp: String?) -> Bool {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        guard let urls = pb.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
+              !urls.isEmpty else { return false }
         
-        let imageHash = imageData.sha256()
-        guard imageHash != lastImageHash else { return true }
-        lastImageHash = imageHash
+        let combinedPaths = urls.map { $0.path }.joined(separator: "\n")
         
-        // Save image to disk
-        let imagePath = saveImageToDisk(imageData)
+        // Duplication check against last state
+        if combinedPaths == lastContent { return true }
+        lastContent = combinedPaths
         
-        // detect type using helper
-        let format = ClipboardItemNameHelper.detectImageFormat(from: imageData)
+        // Differentiate Type based on the first file's UTI
+        guard let firstURL = urls.first else { return false }
+        let type = determineType(for: firstURL)
         
         let item = ClipboardItem(
-            content: "Image.\(format)",
-            type: .image,
-            data: imageData, // Set data for immediate UI use
-            imagePath: imagePath
+            contentPayload: combinedPaths,
+            type: type,
+            sourceApp: sourceApp
         )
         
         addItem(item)
@@ -184,8 +209,77 @@ final class ClipboardManager: ObservableObject {
         return true
     }
     
-    private func processStringContent() -> Bool {
-        guard let string = NSPasteboard.general.string(forType: .string) else { return false }
+    private func determineType(for url: URL) -> ClipboardItemType {
+        if #available(macOS 11.0, *) {
+            guard let resourceValues = try? url.resourceValues(forKeys: [.contentTypeKey]),
+                  let utType = resourceValues.contentType else {
+                return determineTypeFallback(for: url)
+            }
+            
+            if utType.conforms(to: .image) { return .image }
+            if utType.conforms(to: .movie) || utType.conforms(to: .video) { return .video }
+            if utType.conforms(to: .audio) { return .audio }
+            
+            return .file
+        } else {
+            guard let typeId = try? url.resourceValues(forKeys: [.typeIdentifierKey]).typeIdentifier else {
+                return determineTypeFallback(for: url)
+            }
+            
+            let cfType = typeId as CFString
+            if UTTypeConformsTo(cfType, "public.image" as CFString) { return .image }
+            if UTTypeConformsTo(cfType, "public.movie" as CFString) { return .video }
+            if UTTypeConformsTo(cfType, "public.audio" as CFString) { return .audio }
+            
+            return .file
+        }
+    }
+    
+    private func determineTypeFallback(for url: URL) -> ClipboardItemType {
+        let ext = url.pathExtension.lowercased()
+        if ClipboardItemNameHelper.isImageExtension(ext) { return .image }
+        if ClipboardItemNameHelper.isVideoExtension(ext) { return .video }
+        if ClipboardItemNameHelper.isAudioExtension(ext) { return .audio }
+        return .file
+    }
+    
+    private func processImageContent(from pb: NSPasteboard, sourceApp: String?) -> Bool {
+        guard let imageData = pb.data(forType: .tiff) ?? pb.data(forType: .png) else { return false }
+        
+        let imageHash = imageData.sha256()
+        guard imageHash != lastImageHash else { return true }
+        lastImageHash = imageHash
+        
+        let imagePath = saveImageToDisk(imageData)
+        
+        // detect type using helper
+        let format = ClipboardItemNameHelper.detectImageFormat(from: imageData)
+        
+        // Try to get a meaningful name if copied from browser / file instead of pure graphics buffer
+        var contentName = "Image.\(format)"
+        if let urlString = pb.string(forType: .fileURL) ?? pb.string(forType: .URL),
+           let url = URL(string: urlString),
+           !url.lastPathComponent.isEmpty {
+            contentName = url.lastPathComponent
+        } else if let stringData = pb.string(forType: .string), stringData.count < 100, !stringData.contains("\n") {
+            contentName = stringData
+        }
+        
+        let item = ClipboardItem(
+            contentPayload: contentName,
+            type: .image,
+            data: imageData, // Set data for immediate UI use
+            contentPreview: imagePath,
+            sourceApp: sourceApp
+        )
+        
+        addItem(item)
+        saveItems()
+        return true
+    }
+    
+    private func processStringContent(from pb: NSPasteboard, sourceApp: String?) -> Bool {
+        guard let string = pb.string(forType: .string) else { return false }
         
         guard string != lastContent else { return true }
         lastContent = string
@@ -193,60 +287,29 @@ final class ClipboardManager: ObservableObject {
         let trimmedString = string.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedString.isEmpty, trimmedString.count > 1 else { return true }
         
-        let item = ClipboardItem(content: trimmedString, type: .text)
+        let item = ClipboardItem(
+            contentPayload: trimmedString,
+            type: .text,
+            sourceApp: sourceApp
+        )
+        
         addItem(item)
         saveItems()
         return true
     }
     
-    private func processFileContent() -> Bool {
-        // .urlReadingFileURLsOnly: true prevents macOS from trying to resolve web URLs
-        // from the clipboard — without this, every copied URL floods the log with -1002 errors.
-        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
-        guard let fileURLs = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
-              !fileURLs.isEmpty else { return false }
-        
-        // Combine paths with newlines to store multiple files in one item
-        let combinedPaths = fileURLs.map { $0.path }.joined(separator: "\n")
-        
-        // Check if this is a duplicate of the last processed content to avoid loops
-        // (We use a simple check, though files don't usually jitter like logic might)
-        if combinedPaths == lastContent { return true }
-        lastContent = combinedPaths
-        
-        let item = ClipboardItem(content: combinedPaths, type: .file)
-        addItem(item)
-        saveItems()
-        return true
-    }
-    
-    private func processVideoContent() -> Bool {
-        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
-        guard let urls = NSPasteboard.general.readObjects(forClasses: [NSURL.self], options: options) as? [URL],
-              !urls.isEmpty else { return false }
-        
-        let videoURLs = urls.filter { $0.isFileURL && ClipboardItemNameHelper.isVideoExtension($0.pathExtension) }
-        guard !videoURLs.isEmpty else { return false }
-        
-        // For now we take the first video file only (edge case: copying 2 video files together from Finder)
-        let videoPath = videoURLs[0].path
-        
-        if videoPath == lastContent { return true }
-        lastContent = videoPath
-        
-        let item = ClipboardItem(content: videoPath, type: .video)
-        addItem(item)
-        saveItems()
-        return true
-    }
-    
-    private func processRichTextContent() -> Bool {
-        guard let rtfData = NSPasteboard.general.data(forType: .rtf),
+    private func processRichTextContent(from pb: NSPasteboard, sourceApp: String?) -> Bool {
+        guard let rtfData = pb.data(forType: .rtf),
               let rtfString = String(data: rtfData, encoding: .utf8) else { return false }
         
         // For rich text, we store data in memory (it's small usually) or we could refactor similarly if needed.
-        // Assuming RTF is small enough for now, but to be consistent with Item model, we pass data.
-        let item = ClipboardItem(content: rtfString, type: .richText, data: rtfData)
+        let item = ClipboardItem(
+            contentPayload: rtfString,
+            type: .richText,
+            data: rtfData,
+            sourceApp: sourceApp
+        )
+        
         addItem(item)
         saveItems()
         return true
@@ -254,25 +317,26 @@ final class ClipboardManager: ObservableObject {
     
     func addItem(_ item: ClipboardItem) {
         performOnMain {
-            // Images can't be deduplicated by content (it's always "Image.JPEG" etc.),
-            // so we use the imagePath (a UUID on disk) for uniqueness checks instead.
-            let isDuplicate: (ClipboardItem) -> Bool = { existing in
+            // // Old code (for reference): Duplicate handling was previously removing duplicates instead of bumping them up.
+            
+            // Check if duplicate exists based on payload or image preview path
+            let duplicateIndex = self.items.firstIndex { existing in
                 if item.type == .image {
-                    return existing.imagePath != nil && existing.imagePath == item.imagePath
+                    return existing.contentPreview != nil && existing.contentPreview == item.contentPreview
                 }
-                return existing.content == item.content
+                return existing.contentPayload == item.contentPayload
             }
             
-            // Check for duplicate pinned items
-            if let pinnedIndex = self.items.firstIndex(where: { isDuplicate($0) && $0.isPinned }) {
-                // Update existing pinned item
-                self.items[pinnedIndex].data = item.data
-                self.items[pinnedIndex].imagePath = item.imagePath
-                return
+            if let index = duplicateIndex {
+                // It's a duplicate - bump timestamp to now so it rises to the top, preserve pinned state
+                self.items[index].timestamp = Date()
+                self.items[index].data = item.data // refreshed cache
+                self.items[index].contentPreview = item.contentPreview
+                // We do NOT change `isPinned` state, if it was pinned it stays pinned!
+            } else {
+                // New item
+                self.items.insert(item, at: 0)
             }
-            // Remove unpinned duplicates
-            self.items.removeAll { isDuplicate($0) && !$0.isPinned }
-            self.items.insert(item, at: 0)
             
             self.normalizeItemOrdering()
         }
@@ -283,31 +347,31 @@ final class ClipboardManager: ObservableObject {
         
         switch item.type {
         case .text:
-            NSPasteboard.general.setString(item.content, forType: .string)
+            NSPasteboard.general.setString(item.contentPayload, forType: .string)
         case .image:
             if let data = item.data {
                 NSPasteboard.general.setData(data, forType: .tiff)
             }
         case .file:
             // Split content back into paths
-            let paths = item.content.components(separatedBy: "\n")
+            let paths = item.contentPayload.components(separatedBy: "\n")
             let urls = paths.map { URL(fileURLWithPath: $0) as NSURL }
             NSPasteboard.general.writeObjects(urls)
         case .richText:
             if let data = item.data {
                 NSPasteboard.general.setData(data, forType: .rtf)
             }
-        case .video:
-            let videoURL = URL(fileURLWithPath: item.content) as NSURL
-            NSPasteboard.general.writeObjects([videoURL])
+        case .video, .audio:
+            let mediaURL = URL(fileURLWithPath: item.contentPayload) as NSURL
+            NSPasteboard.general.writeObjects([mediaURL])
         }
     }
     
     func removeItem(_ item: ClipboardItem) {
         performOnMain {
             // Delete image file if exists
-            if let imagePath = item.imagePath {
-                self.deleteImageFromDisk(fileName: imagePath)
+            if let previewPath = item.contentPreview {
+                self.deleteImageFromDisk(fileName: previewPath)
             }
             
             self.items.removeAll { $0.id == item.id }
@@ -329,8 +393,8 @@ final class ClipboardManager: ObservableObject {
         performOnMain {
             // Cleanup all image files
             for item in self.items {
-                if let imagePath = item.imagePath {
-                    self.deleteImageFromDisk(fileName: imagePath)
+                if let previewPath = item.contentPreview {
+                    self.deleteImageFromDisk(fileName: previewPath)
                 }
             }
             
@@ -344,8 +408,8 @@ final class ClipboardManager: ObservableObject {
         performOnMain {
             // Cleanup unpinned image files
             for item in self.items where !item.isPinned {
-                if let imagePath = item.imagePath {
-                    self.deleteImageFromDisk(fileName: imagePath)
+                if let previewPath = item.contentPreview {
+                    self.deleteImageFromDisk(fileName: previewPath)
                 }
             }
             
@@ -362,7 +426,7 @@ final class ClipboardManager: ObservableObject {
             let snapshot = self.performOnMain { self.items }
             DispatchQueue.global(qos: .utility).async {
                 do {
-                    // This will encode items. ClipboardItem.encode skips 'data', only saving 'imagePath'
+                    // This will encode items according to new CodingKeys in ClipboardItem
                     let encoded = try JSONEncoder().encode(snapshot)
                     UserDefaults.standard.set(encoded, forKey: Config.savedItemsKey)
                 } catch {
@@ -382,14 +446,14 @@ final class ClipboardManager: ObservableObject {
                 
                 // Hydrate data from disk for images
                 for i in 0..<decodedItems.count {
-                    if decodedItems[i].type == .image, let path = decodedItems[i].imagePath {
+                    if decodedItems[i].type == .image, let path = decodedItems[i].contentPreview {
                          decodedItems[i].data = self.loadImageFromDisk(fileName: path)
                     }
                 }
                 
                 performOnMain {
                     self.items = decodedItems
-                    self.lastContent = decodedItems.first(where: { $0.type == .text })?.content
+                    self.lastContent = decodedItems.first(where: { $0.type == .text })?.contentPayload
                     if let imageItem = decodedItems.first(where: { $0.type == .image }), let data = imageItem.data {
                         self.lastImageHash = data.sha256()
                     } else {
@@ -403,10 +467,6 @@ final class ClipboardManager: ObservableObject {
             // If decoding fails (maybe old format without imagePath logic?), clear history to be safe
             UserDefaults.standard.removeObject(forKey: Config.savedItemsKey)
         }
-    }
-    
-    deinit {
-        stopMonitoring()
     }
     
     private func resetClipboardTracking() {
@@ -426,8 +486,8 @@ final class ClipboardManager: ObservableObject {
             // Make sure to delete files for items that are dropping off the list!
             let itemsToRemove = unpinnedItems.dropFirst(Config.maxItems)
             for item in itemsToRemove {
-                if let imagePath = item.imagePath {
-                    deleteImageFromDisk(fileName: imagePath)
+                if let previewPath = item.contentPreview {
+                    deleteImageFromDisk(fileName: previewPath)
                 }
             }
             unpinnedItems = Array(unpinnedItems.prefix(Config.maxItems))
