@@ -36,7 +36,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // Na końcu poproś o uprawnienia i aktywuj aplikację
         // Uprawnienia Accessibility nadal mogą być przydatne do wklejania, ale nie są krytyczne dla samego skrótu otwieranai okna
-        requestAccessibilityPermissions()
+        // requestAccessibilityPermissions() // Disabled to prevent console warnings/errors
         
         // Aktywacja aplikacji natychmiast po starcie
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {

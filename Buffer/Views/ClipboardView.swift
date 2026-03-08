@@ -86,7 +86,7 @@ struct ClipboardView: View {
                 contentView
                 footerView
             }
-            .frame(width: 440, height: 550)
+            .frame(width: 450, height: 550)
             .opacity(isAppearing ? 1 : 0)
             .scaleEffect(isAppearing ? 1 : 0.95)
             .onAppear(perform: setupAppearance)
@@ -114,7 +114,8 @@ struct ClipboardView: View {
                                     .shadow(radius: 4)
                                 Spacer()
                             }
-                            .padding(.bottom, 20)
+                            // Przesuwamy powiadomienie wyżej, aby nie zasłaniało stopki
+                            .padding(.bottom, 80)
                         }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                         .zIndex(1000)
@@ -347,8 +348,10 @@ struct ClipboardView: View {
     }
     
     private func setupAppearance() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            isAppearing = true
+        DispatchQueue.main.async {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isAppearing = true
+            }
         }
     }
     
