@@ -88,7 +88,7 @@ struct SettingsView: View {
             }
         }
         .padding()
-        .frame(width: 450, height: 600) // Match parent size for seamless overlay
+        .frame(width: 420, height: 550) 
         .background(Color(NSColor.windowBackgroundColor))
         .contentShape(Rectangle())
         .onTapGesture {
