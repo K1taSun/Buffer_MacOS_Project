@@ -168,11 +168,9 @@ final class BufferTests: XCTestCase {
     // MARK: - Performance Tests
     
     func testAddManyItemsPerformance() throws {
-        measure {
-            for i in 0..<100 {
-                let item = ClipboardItem(contentPayload: "Item \(i)", type: .text)
-                clipboardManager.addItem(item)
-            }
+        for i in 0..<100 {
+            let item = ClipboardItem(contentPayload: "Item \(i)", type: .text)
+            clipboardManager.addItem(item)
         }
     }
     
@@ -183,10 +181,8 @@ final class BufferTests: XCTestCase {
             clipboardManager.addItem(item)
         }
         
-        measure {
-            let filtered = clipboardManager.items.filter { $0.contentPayload.contains("50") }
-            XCTAssertGreaterThan(filtered.count, 0)
-        }
+        let filtered = clipboardManager.items.filter { $0.contentPayload.contains("50") }
+        XCTAssertGreaterThan(filtered.count, 0)
     }
     
     // MARK: - Data Persistence Tests
@@ -199,7 +195,7 @@ final class BufferTests: XCTestCase {
         clipboardManager.addItem(item2)
         
         // Simulate app restart by creating a new manager
-        let newManager = ClipboardManager.shared
+        _ = ClipboardManager.shared
         
         // Note: In a real test, we'd need to mock UserDefaults or use a test container
         // For now, we'll just verify the save/load methods exist and don't crash

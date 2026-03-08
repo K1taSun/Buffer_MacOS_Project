@@ -58,3 +58,8 @@ build_log.txt
 .idea/
 .vscode/ 
 i.txt
+
+# Performance Tests Baselines
+*.xcbaseline/
+**/xcbaselines/
+**/*.xcbaseline/
