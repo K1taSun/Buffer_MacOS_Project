@@ -88,7 +88,7 @@ struct SettingsView: View {
             }
         }
         .padding()
-        .frame(width: 440, height: 550) 
+        .frame(width: 450, height: 550) 
         .background(Color(NSColor.windowBackgroundColor))
         .contentShape(Rectangle())
         .onTapGesture {
