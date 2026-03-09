@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import UniformTypeIdentifiers
 
 // OLD CODE (for reference):
 /*
@@ -172,54 +173,85 @@ extension ClipboardItem {
         let provider = NSItemProvider()
         
         switch type {
-        case .text:
+        case .text, .richText:
             provider.registerObject(contentPayload as NSString, visibility: .all)
             
         case .image:
-            if let data = data, let image = NSImage(data: data) {
+            // 1. App-to-App compatibility directly dropping visual NSImage (Notes, Freeform, etc.)
+            let hasImageObject = (data != nil && NSImage(data: data!) != nil)
+            if hasImageObject, let image = NSImage(data: data!) {
                 provider.registerObject(image, visibility: .all)
             }
             
-        case .file:
-            // Handle multiple files
-            let paths = contentPayload.components(separatedBy: "\n").filter { !$0.isEmpty }
-            
-            if !paths.isEmpty {
-                // 1. Modern file URL support (for the first file - standard consumers)
-                let fileURL = URL(fileURLWithPath: paths[0])
-                provider.registerObject(fileURL as NSURL, visibility: .all)
+            // 2. File-system support: Finder expects files.
+            // When dragged to Finder/Desktop, we need to create a temporary file.
+            if let safeData = data {
+                let safeName = self.displayName.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: " ", with: "_")
+                let ext = self.fileExtension ?? "png"
+                let safeFileName = "\(safeName).\(ext)"
                 
-                // 2. Legacy support for multiple files (Finder expects this for multi-file drops)
-                // We use NSFilenamesPboardType (which maps to "NSFilenamesPboardType")
-                provider.registerDataRepresentation(forTypeIdentifier: "NSFilenamesPboardType", visibility: .all) { completion in
+                // Suggested file name when dropping
+                provider.suggestedName = safeFileName
+                
+                let utiType = UTType(filenameExtension: ext)?.identifier ?? "public.image"
+                
+                provider.registerFileRepresentation(forTypeIdentifier: utiType, visibility: .all) { completion in
                     do {
-                        // Takes an array of strings
-                        let data = try PropertyListSerialization.data(fromPropertyList: paths, format: .xml, options: 0)
-                        completion(data, nil)
+                        // We must write to a temporary location for the drag payload
+                        let tempDir = FileManager.default.temporaryDirectory
+                            .appendingPathComponent("BufferDragDrops", isDirectory: true)
+                        
+                        if !FileManager.default.fileExists(atPath: tempDir.path) {
+                            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+                        }
+                        
+                        let tempFileURL = tempDir.appendingPathComponent(safeFileName)
+                        try safeData.write(to: tempFileURL, options: .atomic)
+                        
+                        completion(tempFileURL, false, nil)
                     } catch {
-                        completion(nil, error)
+                        completion(nil, false, error)
                     }
                     return nil
                 }
+            } else if contentPayload.starts(with: "/") || contentPayload.contains("file://") {
+                // Obraz został skopiowany na zasadzie faktu istnienia pliku z Findera. Przekazujemy ścieżki.
+                ClipboardItem.registerFiles(in: provider, from: contentPayload)
             } else {
                 provider.registerObject(contentPayload as NSString, visibility: .all)
             }
             
-        case .richText:
-            // Apple's WebKit has a known sandbox bug when dragging raw RTF data (`public.rtf`) via NSItemProvider,
-            // treating it as a file drop (hence the WebKitDropDestination permission error).
-            // Additionally, NSAttributedString does not natively conform to NSItemProviderWriting on macOS.
-            // The cleanest and most professional fallback for Drag & Drop is exporting plain text (`NSString`), 
-            // while full RTF formatting remains fully supported for regular Copy/Paste (`copyItem`).
-            provider.registerObject(contentPayload as NSString, visibility: .all)
-            
-        case .video, .audio:
-            // Media is stored as a path on disk — just hand it over as a file URL, same as .file
-            let mediaURL = URL(fileURLWithPath: contentPayload)
-            provider.registerObject(mediaURL as NSURL, visibility: .all)
+        case .file, .video, .audio:
+            // Te typy mocno opierają się na fakcie bycia linkami na dysku (contentPayload zawiera path/paths).
+            ClipboardItem.registerFiles(in: provider, from: contentPayload)
         }
         
         return provider
+    }
+    
+    // Helper function to extract and register file dependencies correctly (even multiple files)
+    private static func registerFiles(in provider: NSItemProvider, from payload: String) {
+        let paths = payload.components(separatedBy: "\n").filter { !$0.isEmpty }
+        
+        if paths.isEmpty {
+            provider.registerObject(payload as NSString, visibility: .all)
+            return
+        }
+        
+        // 1. Modern file URL support (for the first file - standard consumers)
+        let fileURL = URL(fileURLWithPath: paths[0])
+        provider.registerObject(fileURL as NSURL, visibility: .all)
+        
+        // 2. Legacy support for multiple files/Finder expected type
+        provider.registerDataRepresentation(forTypeIdentifier: "NSFilenamesPboardType", visibility: .all) { completion in
+            do {
+                let pdata = try PropertyListSerialization.data(fromPropertyList: paths, format: .xml, options: 0)
+                completion(pdata, nil)
+            } catch {
+                completion(nil, error)
+            }
+            return nil
+        }
     }
 }
 
