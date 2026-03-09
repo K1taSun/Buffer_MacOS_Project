@@ -299,12 +299,28 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processRichTextContent(from pb: NSPasteboard, sourceApp: String?) -> Bool {
-        guard let rtfData = pb.data(forType: .rtf),
-              let rtfString = String(data: rtfData, encoding: .utf8) else { return false }
+        guard let rtfData = pb.data(forType: .rtf) else { return false }
+        
+        // Wyciągamy czysty tekst z RTF, żeby nie wyświetlać użytkownikowi i nie przekazywać
+        // w payloadzie surowego kodu w stylu {\rtf1\ansi...}
+        let plainText: String
+        if let attrStr = NSAttributedString(rtf: rtfData, documentAttributes: nil) {
+            plainText = attrStr.string
+        } else if let rtfString = String(data: rtfData, encoding: .utf8) {
+            plainText = rtfString
+        } else {
+            return false
+        }
+        
+        let trimmedString = plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedString.isEmpty else { return false }
+        
+        guard plainText != lastContent else { return true }
+        lastContent = plainText
         
         // For rich text, we store data in memory (it's small usually) or we could refactor similarly if needed.
         let item = ClipboardItem(
-            contentPayload: rtfString,
+            contentPayload: plainText,
             type: .richText,
             data: rtfData,
             sourceApp: sourceApp

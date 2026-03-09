@@ -206,15 +206,11 @@ extension ClipboardItem {
             }
             
         case .richText:
-            // 1. Register RTF data if available (preserves formatting)
-            if let data = data {
-                provider.registerDataRepresentation(forTypeIdentifier: NSPasteboard.PasteboardType.rtf.rawValue, visibility: .all) { completion in
-                    completion(data, nil)
-                    return nil
-                }
-            }
-            
-            // 2. Fallback to plain text
+            // Apple's WebKit has a known sandbox bug when dragging raw RTF data (`public.rtf`) via NSItemProvider,
+            // treating it as a file drop (hence the WebKitDropDestination permission error).
+            // Additionally, NSAttributedString does not natively conform to NSItemProviderWriting on macOS.
+            // The cleanest and most professional fallback for Drag & Drop is exporting plain text (`NSString`), 
+            // while full RTF formatting remains fully supported for regular Copy/Paste (`copyItem`).
             provider.registerObject(contentPayload as NSString, visibility: .all)
             
         case .video, .audio:
