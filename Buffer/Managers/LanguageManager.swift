@@ -38,6 +38,7 @@ final class LanguageManager: ObservableObject {
     private let defaultEnglish: [String: String] = [
         "settings.title": "Settings", "settings.language": "Language", "settings.globalShortcut": "Global Shortcut",
         "settings.recording": "Recording... Press keys", "settings.defaultShortcut": "⌘⇧V (Default)", "settings.done": "Done",
+        "settings.launchAtLogin": "Launch at login",
         "clipboard.title": "Clipboard History", "clipboard.search": "Search", "clipboard.itemsCount": "items",
         "clipboard.clearUnpinned": "Clear Unpinned", "clipboard.clearAll": "Clear All", "clipboard.copied": "Copied!",
         "filter.all": "All", "filter.text": "Text", "filter.images": "Images", "filter.videos": "Videos",
@@ -56,6 +57,7 @@ final class LanguageManager: ObservableObject {
     private let defaultPolish: [String: String] = [
         "settings.title": "Ustawienia", "settings.language": "Język", "settings.globalShortcut": "Globalny Skrót Kl.",
         "settings.recording": "Nagrywanie... Naciśnij klawisze", "settings.defaultShortcut": "⌘⇧V (Domyślny)", "settings.done": "Gotowe",
+        "settings.launchAtLogin": "Uruchamiaj przy starcie",
         "clipboard.title": "Historia Schowka", "clipboard.search": "Szukaj", "clipboard.itemsCount": "elementów",
         "clipboard.clearUnpinned": "Wyczyść nieprzypięte", "clipboard.clearAll": "Wyczyść wszystko", "clipboard.copied": "Skopiowano!",
         "filter.all": "Kaskada", "filter.text": "Tekst", "filter.images": "Zdjęcia", "filter.videos": "Nagrania",
@@ -116,7 +118,23 @@ final class LanguageManager: ObservableObject {
         } else {
             do {
                 let data = try Data(contentsOf: fileURL)
-                let dict = try JSONDecoder().decode([String: String].self, from: data)
+                var dict = try JSONDecoder().decode([String: String].self, from: data)
+                
+                // Merge default keys that might be missing in the loaded JSON
+                var hasMissingKeys = false
+                for (key, value) in defaultData {
+                    if dict[key] == nil {
+                        dict[key] = value
+                        hasMissingKeys = true
+                    }
+                }
+                
+                // Save updated dict back to file if there were missing keys
+                if hasMissingKeys {
+                    let updatedData = try JSONEncoder().encode(dict)
+                    try updatedData.write(to: fileURL)
+                }
+                
                 translations[language] = dict
             } catch {
                 print("🚨 Failed to read \(language.id).json from disk, using fallback: \(error)")
