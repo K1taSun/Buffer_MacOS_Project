@@ -120,7 +120,7 @@ final class LanguageManager: ObservableObject {
                 let data = try Data(contentsOf: fileURL)
                 var dict = try JSONDecoder().decode([String: String].self, from: data)
                 
-                // Merge default keys that might be missing in the loaded JSON
+                
                 var hasMissingKeys = false
                 for (key, value) in defaultData {
                     if dict[key] == nil {
@@ -129,7 +129,7 @@ final class LanguageManager: ObservableObject {
                     }
                 }
                 
-                // Save updated dict back to file if there were missing keys
+                
                 if hasMissingKeys {
                     let updatedData = try JSONEncoder().encode(dict)
                     try updatedData.write(to: fileURL)
