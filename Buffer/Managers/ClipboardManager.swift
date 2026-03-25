@@ -5,7 +5,7 @@ import CryptoKit
 import UniformTypeIdentifiers
 
 private enum Config {
-    static let maxItems = 1024
+    static let maxItems = 50
     static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
 
