@@ -6,7 +6,6 @@ struct ClipboardView: View {
     @EnvironmentObject private var languageManager: LanguageManager
     
     @State private var searchText = ""
-    @State private var isAppearing = false
     @State private var selectedFilter: ClipboardFilter = .all
     @State private var previewedImage: ImagePreviewData? = nil
     @State private var showCopyFeedback = false
@@ -87,9 +86,6 @@ struct ClipboardView: View {
                 footerView
             }
             .frame(width: 450, height: 550)
-            .opacity(isAppearing ? 1 : 0)
-            .scaleEffect(isAppearing ? 1 : 0.95)
-            .onAppear(perform: setupAppearance)
             .sheet(item: $previewedImage) { preview in
                 ImagePreviewSheet(image: preview.image)
                     .environmentObject(languageManager)
@@ -345,14 +341,6 @@ struct ClipboardView: View {
         }
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
-    }
-    
-    private func setupAppearance() {
-        DispatchQueue.main.async {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isAppearing = true
-            }
-        }
     }
     
     private func triggerCopyFeedback() {

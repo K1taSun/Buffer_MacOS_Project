@@ -1,9 +1,13 @@
 import SwiftUI
+import ServiceManagement
 
 struct SettingsView: View {
     @Binding var isPresented: Bool
     @StateObject private var shortcutManager = ShortcutManager.shared
     @EnvironmentObject private var languageManager: LanguageManager
+    
+    // Status uruchamiania przy starcie
+    @State private var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     
     var body: some View {
         VStack(spacing: 20) {
@@ -27,6 +31,26 @@ struct SettingsView: View {
                     .frame(width: 120)
                     .pickerStyle(MenuPickerStyle())
                 }
+                
+                Divider().padding(.vertical, 4)
+                
+                // Sekcja Uruchamiania
+                Toggle(languageManager.localized("settings.launchAtLogin"), isOn: $launchAtLogin)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        do {
+                            if newValue {
+                                try SMAppService.mainApp.register()
+                            } else {
+                                try SMAppService.mainApp.unregister()
+                            }
+                        } catch {
+                            print("🚨 Failed to update login item status: \(error)")
+                            // Cofnij zmianę w UI w przypadku błędu
+                            launchAtLogin = SMAppService.mainApp.status == .enabled
+                        }
+                    }
                 
                 Divider().padding(.vertical, 4)
                 
