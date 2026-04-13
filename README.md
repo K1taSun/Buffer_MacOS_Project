@@ -61,13 +61,24 @@ Buffer is a native macOS application that enhances your productivity by maintain
 
 ## 🚀 Installation
 
+### Option 1: Using the Installer (Recommended)
+1. **Download the latest DMG** from the [Releases](https://github.com/K1taSun/Buffer_MacOS_Project/releases) page.
+2. Open `Buffer_Installer.dmg`.
+3. Drag **Buffer** to your **Applications** folder.
+
+### Option 2: Build from Source
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/Buffer_MacOS_Project.git
+   git clone https://github.com/K1taSun/Buffer_MacOS_Project.git
    cd Buffer_MacOS_Project
    ```
 
-2. **Build the application**
+2. **Generate the DMG Installer**
+   ```bash
+   chmod +x scripts/create_dmg.sh && ./scripts/create_dmg.sh
+   ```
+
+3. **Or just build the app**
    ```bash
    chmod +x build.sh && ./build.sh
    # Or open Buffer.xcodeproj in Xcode and press ⌘R
