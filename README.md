@@ -34,6 +34,20 @@ Buffer is a native macOS application that enhances your productivity by maintain
 - **⌨️ Keyboard Navigation:** Global hotkeys (`⌘⇧V`).
 - **🖱️ Drag & Drop:** Drag items directly from history to other apps.
 
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+  <img src="assets/main_window.png" width="800" alt="Buffer Main Window">
+  <br>
+  <p align="center">
+    <img src="assets/empty_state.png" width="390" alt="Empty State">
+    <img src="assets/settings.png" width="390" alt="Settings View">
+  </p>
+</div>
+
 ---
 
 ## 📦 Requirements
