@@ -38,7 +38,7 @@ struct SettingsView: View {
                 Toggle(languageManager.localized("settings.launchAtLogin"), isOn: $launchAtLogin)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
-                    .onChange(of: launchAtLogin) { _, newValue in
+                    .onChange(of: launchAtLogin) { newValue in
                         do {
                             if newValue {
                                 try SMAppService.mainApp.register()
