@@ -7,7 +7,7 @@ struct ClipboardView: View {
     
     @State private var searchText = ""
     @State private var selectedFilter: ClipboardFilter = .all
-    @State private var previewedImage: ImagePreviewData? = nil
+
     @State private var showCopyFeedback = false
     @State private var showSettings = false
     var allowDrag: Bool = true
@@ -86,10 +86,6 @@ struct ClipboardView: View {
                 footerView
             }
             .frame(width: 450, height: 550)
-            .sheet(item: $previewedImage) { preview in
-                ImagePreviewSheet(image: preview.image)
-                    .environmentObject(languageManager)
-            }
             .overlay(
                 Group {
                     if showCopyFeedback {
@@ -217,9 +213,7 @@ struct ClipboardView: View {
                                 
                                 // Items in section
                                 ForEach(section.1) { item in
-                                    let itemView = ClipboardItemView(item: item, onImageTap: { nsImage in
-                                        previewedImage = ImagePreviewData(image: nsImage)
-                                    })
+                                    let itemView = ClipboardItemView(item: item)
                                     .contextMenu {
                                         Button(languageManager.localized("context.copy")) { 
                                             clipboardManager.copyItem(item)
@@ -415,7 +409,7 @@ struct ClipboardItemView: View {
     @EnvironmentObject private var clipboardManager: ClipboardManager
     @State private var isHovered = false
     @State private var isSelected = false
-    var onImageTap: ((NSImage) -> Void)? = nil
+
     
     var body: some View {
         HStack(spacing: 12) {
@@ -450,8 +444,7 @@ struct ClipboardItemView: View {
                     let firstPath = item.contentPayload.components(separatedBy: "\n").first ?? item.contentPayload
                     AsyncThumbnailView(
                         url: URL(fileURLWithPath: firstPath),
-                        fallbackIcon: item.type.icon,
-                        onImageTap: onImageTap
+                        fallbackIcon: item.type.icon
                     )
                 }
             } else if item.type == .file || item.type == .video || item.type == .audio {
@@ -476,9 +469,6 @@ struct ClipboardItemView: View {
             .frame(width: 44, height: 44)
             .cornerRadius(6)
             .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-            .onTapGesture {
-                onImageTap?(image)
-            }
     }
 
     @ViewBuilder
@@ -656,37 +646,11 @@ struct GlowEffect: ViewModifier {
     }
 }
 
-struct ImagePreviewData: Identifiable {
-    let id = UUID()
-    let image: NSImage
-}
 
-struct ImagePreviewSheet: View {
-    let image: NSImage
-    @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var languageManager: LanguageManager
-    
-    var body: some View {
-        VStack {
-            Image(nsImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 500, maxHeight: 500)
-                .padding()
-            
-            Button(languageManager.localized("context.close")) {
-                dismiss()
-            }
-            .padding(.bottom)
-        }
-        .frame(minWidth: 300, minHeight: 300)
-    }
-}
 
 struct AsyncThumbnailView: View {
     let url: URL
     let fallbackIcon: String
-    let onImageTap: ((NSImage) -> Void)?
     
     @State private var image: NSImage?
     
@@ -699,9 +663,6 @@ struct AsyncThumbnailView: View {
                     .frame(width: 44, height: 44)
                     .cornerRadius(6)
                     .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                    .onTapGesture {
-                        onImageTap?(image)
-                    }
             } else {
                 Image(systemName: fallbackIcon)
                     .font(.system(size: 20))

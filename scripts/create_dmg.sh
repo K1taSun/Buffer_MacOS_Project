@@ -1,96 +1,111 @@
 #!/bin/bash
-
-# Buffer DMG Creation Script
-# This script builds the Buffer app in Release mode and packages it into a styled DMG.
-
 set -e
 
-# --- Configuration ---
+# ── Config ───────────────────────────────────────────────────────────────────
 APP_NAME="Buffer"
-PROJECT_NAME="Buffer"
-SCHEME="Buffer"
-dmg_background_path="assets/dmg_background.png"
-dmg_temp_dir="build/dmg_temp"
-dmg_output_name="Buffer.dmg"
-final_dmg="Buffer_Installer.dmg"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+APP_PATH="${PROJECT_ROOT}/build/Build/Products/Release/${APP_NAME}.app"
+OUTPUT_DIR="${PROJECT_ROOT}/build/installer"
+DMG_TEMP="${OUTPUT_DIR}/${APP_NAME}-temp.dmg"
+DMG_FINAL="${OUTPUT_DIR}/${APP_NAME}-Installer.dmg"
+BG_IMG="${OUTPUT_DIR}/bg_black.png"
 
-echo "🚀 Starting DMG creation process for ${APP_NAME}..."
+echo "▸ Creating Buffer DMG installer..."
 
-# 1. Clean and Build
-echo "🧹 Cleaning and building ${APP_NAME} in Release mode..."
-rm -rf build/
-rm -f "${dmg_output_name}" "${final_dmg}"
-
-xcodebuild -project "${PROJECT_NAME}.xcodeproj" \
-           -scheme "${SCHEME}" \
-           -configuration Release \
-           -derivedDataPath build \
-           build
-
-APP_PATH="build/Build/Products/Release/${APP_NAME}.app"
-
-if [ ! -d "${APP_PATH}" ]; then
-    echo "❌ Error: App bundle not found at ${APP_PATH}"
-    exit 1
+# Check app exists
+if [ ! -d "$APP_PATH" ]; then
+    echo "✖ Buffer.app not found. Building..."
+    xcodebuild -project "${PROJECT_ROOT}/Buffer.xcodeproj" \
+               -scheme Buffer -configuration Release \
+               -derivedDataPath "${PROJECT_ROOT}/build" build 2>&1 | tail -3
 fi
 
-echo "✅ Build successful."
+mkdir -p "$OUTPUT_DIR"
 
-# 2. Prepare staging directory
-echo "📁 Preparing staging directory..."
-mkdir -p "${dmg_temp_dir}"
-cp -R "${APP_PATH}" "${dmg_temp_dir}/"
-ln -s /Applications "${dmg_temp_dir}/Applications"
+# Generate solid black 600x400 background
+sips -z 1 1 /System/Library/CoreServices/DefaultBackground.jpg --out "$BG_IMG" 2>/dev/null || \
+    python3 -c "
+from PIL import Image
+Image.new('RGB',(600,400),(0,0,0)).save('${BG_IMG}')
+" 2>/dev/null || \
+    # Fallback: create via convert or raw bytes
+    printf '\x89PNG\r\n\x1a\n' > /dev/null  # just skip if nothing works
 
-# Add background
-mkdir -p "${dmg_temp_dir}/.background"
-cp "${dmg_background_path}" "${dmg_temp_dir}/.background/background.png"
+# Use sips to make proper 600x400 black PNG
+python3 -c "
+import struct, zlib
+w, h = 600, 400
+raw = b''
+for _ in range(h):
+    raw += b'\x00' + b'\x00\x00\x00' * w
+def chunk(t, d):
+    c = t + d
+    return struct.pack('>I', len(d)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+with open('${BG_IMG}', 'wb') as f:
+    f.write(b'\x89PNG\r\n\x1a\n')
+    f.write(chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)))
+    f.write(chunk(b'IDAT', zlib.compress(raw)))
+    f.write(chunk(b'IEND', b''))
+print('Black background generated')
+"
 
-# 3. Create temporary writable DMG
-echo "💿 Creating temporary writable DMG..."
-hdiutil create -srcfolder "${dmg_temp_dir}" -volname "${APP_NAME}" -fs HFS+ \
-        -fsargs "-c c=64,a=16,e=16" -format UDRW -size 300m temp.dmg
+# Clean up old DMGs
+rm -f "$DMG_TEMP" "$DMG_FINAL"
+hdiutil detach "/Volumes/${APP_NAME}" -force 2>/dev/null || true
+sleep 1
 
-echo "📂 Mounting DMG for styling..."
-device=$(hdiutil attach -readwrite -noverify "temp.dmg" | egrep '^/dev/' | sed 1q | awk '{print $1}')
-sleep 2 # Wait for mount
+# Create blank writable DMG
+APP_SIZE_KB=$(du -sk "$APP_PATH" | awk '{print $1}')
+DMG_SIZE_KB=$((APP_SIZE_KB + 20480))
 
-# 4. Style with AppleScript
-echo "🎨 Applying styles via AppleScript..."
-osascript <<EOT
+hdiutil create -volname "$APP_NAME" -fs HFS+ \
+    -size "${DMG_SIZE_KB}k" -type UDIF -layout NONE \
+    "$DMG_TEMP" -quiet
+
+# Mount
+hdiutil attach "$DMG_TEMP" -readwrite -noverify -noautoopen -quiet
+sleep 2
+
+# Copy content
+cp -a "$APP_PATH" "/Volumes/${APP_NAME}/${APP_NAME}.app"
+ln -s /Applications "/Volumes/${APP_NAME}/Applications"
+mkdir -p "/Volumes/${APP_NAME}/.background"
+cp "$BG_IMG" "/Volumes/${APP_NAME}/.background/background.png"
+
+# Style with AppleScript
+osascript <<EOF
 tell application "Finder"
     tell disk "${APP_NAME}"
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {400, 100, 1000, 700}
+        set the bounds of container window to {100, 100, 700, 500}
         set viewOptions to the icon view options of container window
-        set icon size of viewOptions to 120
         set arrangement of viewOptions to not arranged
+        set icon size of viewOptions to 80
         set background picture of viewOptions to file ".background:background.png"
-        
-        # Position icons
-        # {x, y} relative to window
-        set position of item "${APP_NAME}.app" to {180, 420}
-        set position of item "Applications" to {420, 420}
-        
+        set position of item "${APP_NAME}.app" of container window to {175, 200}
+        set position of item "Applications" of container window to {425, 200}
         close
         open
-        delay 1
+        update without registering applications
+        delay 2
     end tell
 end tell
-EOT
+EOF
 
-echo "🔒 Finalizing DMG..."
-chmod -Rf go-w /Volumes/"${APP_NAME}" || true
 sync
-hdiutil detach "${device}"
 
-# 5. Convert to read-only compressed format
-echo "📦 Converting to final compressed format..."
-hdiutil convert "temp.dmg" -format UDZO -imagekey zlib-level=9 -o "${final_dmg}"
-rm "temp.dmg"
-rm -rf "${dmg_temp_dir}"
+# Unmount & compress
+hdiutil detach "/Volumes/${APP_NAME}" -force -quiet 2>/dev/null || true
+sleep 2
 
-echo "✨ DMG created successfully: ${final_dmg}"
+hdiutil convert "$DMG_TEMP" -format UDZO -imagekey zlib-level=9 \
+    -o "$DMG_FINAL" -quiet
+
+rm -f "$DMG_TEMP" "$BG_IMG"
+
+FINAL_SIZE=$(du -h "$DMG_FINAL" | awk '{print $1}')
+echo "✔ Done! ${DMG_FINAL} (${FINAL_SIZE})"
