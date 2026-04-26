@@ -1,7 +1,6 @@
 import Foundation
 import AppKit
 import SwiftUI
-import SwiftUI
 import os
 struct SavedShortcut: Codable, Equatable {
     let keyCode: Int
@@ -93,15 +92,6 @@ class ShortcutManager: ObservableObject {
         let chars = event.charactersIgnoringModifiers
         
         self.shortcut = SavedShortcut(keyCode: key, modifiers: modifiers, characters: chars)
-    }
-    
-    // Legacy matches method removed or kept for local fallback?
-    // Carbon handles global, but local NSEvent might still be relevant if we wanted to
-    // keep consistency. However, Carbon works locally too.
-    // We can keep it if other parts of the app use it, but HotKeyManager handles the activation.
-    func matches(_ event: NSEvent) -> Bool {
-        // ... (implementation kept if needed, but HotKeyManager is primary now)
-        return false 
     }
     
     private func updateHotKey() {

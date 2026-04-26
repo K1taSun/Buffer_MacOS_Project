@@ -35,9 +35,6 @@ struct ClipboardView: View {
             return searchFiltered
         case .text:
             return searchFiltered.filter { $0.type == .text }
-// Old code (for reference):
-//         case .images:
-//             return searchFiltered.filter { $0.type == .image }
         case .images:
             return searchFiltered.filter { $0.type == .image }
         case .videos:
@@ -380,24 +377,12 @@ struct FilterButton: View {
 enum ClipboardFilter: CaseIterable {
     case all, text, images, videos, files, pinned
     
-// Old code (for reference):
-//     var title: String {
-//         switch self {
-//         case .all: return "All"
-//         case .text: return "Text"
-//         case .images: return "Images"
-//         case .files: return "Files"
-//         case .urls: return "URLs"
-//         case .pinned: return "Pinned"
-//         }
-//     }
-
     var localizedKey: String {
         switch self {
         case .all: return "filter.all"
         case .text: return "filter.text"
         case .images: return "filter.images"
-        case .videos: return "filter.videos" // Videos / Audio
+        case .videos: return "filter.videos"
         case .files: return "filter.files"
         case .pinned: return "filter.pinned"
         }
@@ -515,12 +500,6 @@ struct ClipboardItemView: View {
                 
                 Spacer()
                 
-// Old code (for reference):
-//                 Text(item.timestamp, style: .time)
-//                     .font(.caption)
-//                     .foregroundColor(.secondary)
-
-                // Jeśli plik wpadł do dawnej historii, modyfikujemy tekst żeby pokazywał mu również konkretną datę.
                 Text(getHumanReadableDate(for: item))
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -645,8 +624,6 @@ struct GlowEffect: ViewModifier {
             .blur(radius: isSelected ? 1 : 0)
     }
 }
-
-
 
 struct AsyncThumbnailView: View {
     let url: URL

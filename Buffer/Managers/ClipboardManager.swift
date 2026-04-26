@@ -6,16 +6,13 @@ import UniformTypeIdentifiers
 
 private enum Config {
     static let maxItems = 54
-    static let checkInterval: TimeInterval = 0.5
     static let savedItemsKey = "savedClipboardItems"
-
 }
 
 final class ClipboardManager: ObservableObject {
     static let shared = ClipboardManager()
     @Published var items: [ClipboardItem] = []
     
-    private var timer: Timer?
     private var pasteboard: NSPasteboard = .general
     private var lastChangeCount: Int = 0
     private var lastContent: String?
@@ -104,6 +101,7 @@ final class ClipboardManager: ObservableObject {
         pollingTask = Task { [weak self] in
             while !Task.isCancelled {
                 self?.checkForChanges()
+                self?.triggerUIRefreshIfNeeded()
                 try? await Task.sleep(nanoseconds: 750_000_000)
             }
         }
@@ -157,29 +155,12 @@ final class ClipboardManager: ObservableObject {
     }
     
     private func processClipboardContent() {
-        // OLD CODE (for reference):
-        /*
-        if processImageContent() { return }
-        if processVideoContent() { return }
-        if processFileContent() { return }
-        if processStringContent() { return }
-        if processRichTextContent() { return }
-        */
-        
         let pb = NSPasteboard.general
         let sourceApp = getSourceApp()
         
-        // Let's rely on explicit UTIs first
-        // 1. Check for files/media dragged from finder (which give file URLs)
         if processFileURLs(from: pb, sourceApp: sourceApp) { return }
-        
-        // 2. Check for explicit image data in memory (like a screenshot)
         if processImageContent(from: pb, sourceApp: sourceApp) { return }
-        
-        // 3. Rich text
         if processRichTextContent(from: pb, sourceApp: sourceApp) { return }
-        
-        // 4. Plain text fallback
         if processStringContent(from: pb, sourceApp: sourceApp) { return }
     }
     
@@ -333,8 +314,6 @@ final class ClipboardManager: ObservableObject {
     
     func addItem(_ item: ClipboardItem) {
         performOnMain {
-            // // Old code (for reference): Duplicate handling was previously removing duplicates instead of bumping them up.
-            
             // Check if duplicate exists based on payload or image preview path
             let duplicateIndex = self.items.firstIndex { existing in
                 if item.type == .image {

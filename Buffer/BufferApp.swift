@@ -34,24 +34,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Następnie skonfiguruj lokalny monitor (opcjonalnie, do innych celów, np. ESC w oknie)
         setupLocalMonitor()
         
-        // Na końcu poproś o uprawnienia i aktywuj aplikację
-        // Uprawnienia Accessibility nadal mogą być przydatne do wklejania, ale nie są krytyczne dla samego skrótu otwieranai okna
-        // requestAccessibilityPermissions() // Disabled to prevent console warnings/errors
-        
-        // Aktywacja aplikacji natychmiast po starcie
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             NSApp.activate(ignoringOtherApps: true)
-        }
-    }
-    
-    private func requestAccessibilityPermissions() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true]
-        let accessEnabled = AXIsProcessTrustedWithOptions(options as CFDictionary)
-        
-        if !accessEnabled {
-            logger.warning("Accessibility permissions NOT granted - specific features like pasting might be limited, but global shortcut will work.")
-        } else {
-            logger.info("Accessibility permissions granted")
         }
     }
     

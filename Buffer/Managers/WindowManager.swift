@@ -111,8 +111,6 @@ class WindowManager: NSObject, ObservableObject {
         window.setFrame(NSRect(x: finalX, y: finalY, width: windowFrame.width, height: windowFrame.height), display: true)
     }
     
-
-    
     func closeWindow() {
         guard let window = window else { return }
         window.close()
@@ -131,8 +129,4 @@ extension WindowManager: NSWindowDelegate {
             window = nil
         }
     }
-    
-    func windowDidResignKey(_ notification: Notification) {
-
-    }
-} 
+}

@@ -2,22 +2,6 @@ import Foundation
 import AppKit
 import UniformTypeIdentifiers
 
-// OLD CODE (for reference):
-/*
-struct ClipboardItem: Identifiable, Codable {
-    let id: UUID
-    let content: String
-    let type: ClipboardItemType
-    let timestamp: Date
-    var isPinned: Bool
-    var imagePath: String?
-    
-    // Data is not encoded/decoded automatically
-    var data: Data?
-    ...
-}
-*/
-
 struct ClipboardItem: Identifiable, Codable {
     let id: UUID
     var timestamp: Date
@@ -255,10 +239,7 @@ extension ClipboardItem {
     }
 }
 
-
 enum DateSection: Int, CaseIterable {
-
-
     case today
     case yesterday
     case past
