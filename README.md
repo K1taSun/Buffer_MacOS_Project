@@ -63,8 +63,30 @@ Buffer is a native macOS application that enhances your productivity by maintain
 
 ### Option 1: Using the Installer (Recommended)
 1. **Download the latest DMG** from the [Releases](https://github.com/K1taSun/Buffer_MacOS_Project/releases) page.
-2. Open `Buffer_Installer.dmg`.
+2. Open `Buffer-Installer.dmg`.
 3. Drag **Buffer** to your **Applications** folder.
+
+> [!IMPORTANT]
+> **macOS Gatekeeper — first launch only**
+>
+> Because Buffer is not notarized through Apple, macOS will block it on first launch with a message like *"Buffer can't be opened because it is from an unidentified developer."*
+>
+> **Fix — choose one of the two methods below:**
+>
+> **Method A — Terminal (fastest):**
+> ```bash
+> xattr -cr /Applications/Buffer.app
+> ```
+> Then double-click Buffer normally from Applications.
+>
+> **Method B — System Settings:**
+> 1. Try to open Buffer from Applications (it will be blocked)
+> 2. Open `System Settings → Privacy & Security`
+> 3. Scroll down — you'll see *"Buffer was blocked…"*
+> 4. Click **"Open Anyway"** → confirm with your password
+
+4. **Grant Accessibility Permission** — macOS will prompt you automatically. If not:
+   `System Settings → Privacy & Security → Accessibility` → enable **Buffer** ✅
 
 ### Option 2: Build from Source
 1. **Clone the repository**
